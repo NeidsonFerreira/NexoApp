@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Firebase / Google
+google-services.json
+GoogleService-Info.plist
+.firebase/
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Build
+build/
+android/app/build/
+ios/build/
+
+# Cache
+.cache/
+
+# Logs
+logs/
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Native keys / segurança
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Kotlin / Android
+.kotlin/
+
+# MacOS
+.DS_Store
+
+# Certificates
+*.pem
+
+# TypeScript
+*.tsbuildinfo
+
+# Metro
+.metro-health-check*

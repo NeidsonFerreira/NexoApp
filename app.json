@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "Nexo",
+    "slug": "nexo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "nexo",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "config": {
+        "bundleIdentifier": "com.nexo.app",
+        "googleMapsApiKey": "AIzaSyBDawhwhEmdCe6nqAhdmwSjdu6GQnsIJrs"
+      },
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.nexo.app",
+      "softwareKeyboardLayoutMode": "resize",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {},
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBDawhwhEmdCe6nqAhdmwSjdu6GQnsIJrs"
+        }
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3929212574112376~8719443360",
+          "iosAppId": "ca-app-pub-3929212574112376~4205483282"
+        }
+      ],
+      "expo-video"
+    ],
+    "experiments": {
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c9b1e493-aacf-48fb-949e-79b89b660718"
+      }
+    }
+  }
+}

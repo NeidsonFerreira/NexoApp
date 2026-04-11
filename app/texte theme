@@ -1,0 +1,74 @@
+import { useAppTheme } from "../contexts/ThemeContext";
+
+
+const { theme } = useAppTheme ();
+const styles = createStyles (theme);
+
+
+function createStyles(theme: any){
+  return StyleSheet.create({
+
+
+
+
+
+    case "a_caminho":
+      return theme.colors.statusAguardando;
+    case "chegou":
+      return theme.colors.statusChegou;
+    case "cliente_a_caminho":
+      return theme.colors.statusClienteCaminho;
+    case "cliente_chegou":
+      return theme.colors.statusClienteChegou;
+
+      primary: "#2563EB",
+    secondary: "#0ea5e9",
+    success: "#16a34a",
+    warning: "#f59e0b",
+    danger: "#ef4444",
+    purple: "#8b5cf6",
+
+
+
+
+    {
+  "expo": {
+    "plugins": [
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3929212574112376~8719443360",
+          "iosAppId": "ca-app-pub-3929212574112376~8719443360"
+        }
+      ]
+    ]
+  }
+}
+
+
+
+
+
+
+maneuverIconText: {
+  color: theme.colors.text,
+  fontSize: 22,
+  fontWeight: "800",
+  textAlign: "center",
+},
+
+maneuverBannerTextWrap: {
+  flex: 1,
+  justifyContent: "center",
+},
+
+
+
+const { tipo } = useLocalSearchParams<{ tipo?: string }>();
+
+const tipoSeguro =
+  tipo === "cliente" || tipo === "profissional" ? tipo : null;
+
+  if (!tipoSeguro) {
+  return <Redirect href="/entrada" />;
+}
