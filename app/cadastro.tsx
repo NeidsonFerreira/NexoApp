@@ -24,6 +24,8 @@ import { useAppTheme } from "../contexts/ThemeContext";
 import { cadastrarComEmail } from "../lib/auth";
 import { handleError } from "../lib/errorHandler";
 import { auth, functions } from "../lib/firebase";
+import { safeRequest } from "../lib/firebaseService";
+import { logError, logEvent } from "../lib/logger";
 import { isOnline } from "../lib/network";
 
 type FinalizarCadastroInicialResponse = {
@@ -41,9 +43,9 @@ type VerificarDisponibilidadeCadastroResponse = {
 export default function Cadastro() {
   const { theme } = useAppTheme();
   const styles = createStyles(theme);
-  const { tipo } = useLocalSearchParams<{ tipo?: string }>();
 
-  const tipoSeguro =
+  const { tipo } = useLocalSearchParams<{ tipo?: string }>();
+  const tipoSeguro: "cliente" | "profissional" | null =
     tipo === "cliente" || tipo === "profissional" ? tipo : null;
 
   const [nome, setNome] = useState("");
@@ -57,6 +59,21 @@ export default function Cadastro() {
   const [carregando, setCarregando] = useState(false);
 
   const emailNormalizado = useMemo(() => email.trim().toLowerCase(), [email]);
+
+  const senhaChecks = useMemo(
+    () => ({
+      tamanho: senha.length >= 8,
+      maiuscula: /[A-Z]/.test(senha),
+      minuscula: /[a-z]/.test(senha),
+      numero: /\d/.test(senha),
+    }),
+    [senha]
+  );
+
+  const senhaConfirmada = useMemo(() => {
+    if (!repetirSenha) return false;
+    return senha === repetirSenha;
+  }, [senha, repetirSenha]);
 
   useEffect(() => {
     const backAction = () => {
@@ -80,13 +97,12 @@ export default function Cadastro() {
     const numeros = valor.replace(/\D/g, "").slice(0, 11);
 
     if (numeros.length <= 2) return numeros;
+
     if (numeros.length <= 7) {
       return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
     }
 
-    return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(
-      7
-    )}`;
+    return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`;
   }
 
   function normalizarTelefone(valor: string) {
@@ -107,21 +123,56 @@ export default function Cadastro() {
     );
   }
 
+  function renderPasswordRequirement(label: string, ok: boolean) {
+    return (
+      <View style={styles.passwordRuleRow}>
+        <Ionicons
+          name={ok ? "checkmark-circle" : "ellipse-outline"}
+          size={16}
+          color={ok ? theme.colors.primary : theme.colors.textMuted}
+        />
+        <Text
+          style={[styles.passwordRuleText, ok && styles.passwordRuleTextOk]}
+        >
+          {label}
+        </Text>
+      </View>
+    );
+  }
+
   async function verificarDisponibilidadeCadastro() {
     const callable = httpsCallable<
       { email: string; telefone: string },
       VerificarDisponibilidadeCadastroResponse
     >(functions, "verificarDisponibilidadeCadastro");
 
-    const response = await callable({
-      email: emailNormalizado,
-      telefone: normalizarTelefone(celular),
-    });
+    const response = await safeRequest(
+      () =>
+        callable({
+          email: emailNormalizado,
+          telefone: normalizarTelefone(celular),
+        }),
+      {
+        timeoutMs: 15000,
+        tentativas: 1,
+        exigirInternet: true,
+        dedupeKey: `cadastro:disponibilidade:${emailNormalizado}:${normalizarTelefone(
+          celular
+        )}`,
+        priority: 9,
+      }
+    );
 
     return response.data;
   }
 
   async function finalizarCadastroInicial() {
+    if (!tipoSeguro) {
+      throw new Error("Tipo de cadastro inválido.");
+    }
+
+    const tipoCadastro: "cliente" | "profissional" = tipoSeguro;
+
     const callable = httpsCallable<
       {
         tipo: "cliente" | "profissional";
@@ -132,14 +183,22 @@ export default function Cadastro() {
       FinalizarCadastroInicialResponse
     >(functions, "finalizarCadastroInicial");
 
-    const tipoFinal = tipoSeguro!;
-
-    const response = await callable({
-      tipo: tipoFinal,
-      nome: nome.trim(),
-      telefone: celular.trim(),
-      email: emailNormalizado,
-    });
+    const response = await safeRequest(
+      () =>
+        callable({
+          tipo: tipoCadastro,
+          nome: nome.trim(),
+          telefone: celular.trim(),
+          email: emailNormalizado,
+        }),
+      {
+        timeoutMs: 20000,
+        tentativas: 1,
+        exigirInternet: true,
+        dedupeKey: `cadastro:finalizar:${tipoCadastro}:${emailNormalizado}`,
+        priority: 10,
+      }
+    );
 
     return response.data;
   }
@@ -186,12 +245,12 @@ export default function Cadastro() {
 
       const disponibilidade = await verificarDisponibilidadeCadastro();
 
-      if (disponibilidade.emailDisponivel === false) {
+      if (disponibilidade?.emailDisponivel === false) {
         Alert.alert("Email já cadastrado", "Esse email já está em uso.");
         return;
       }
 
-      if (disponibilidade.telefoneDisponivel === false) {
+      if (disponibilidade?.telefoneDisponivel === false) {
         Alert.alert("Telefone já cadastrado", "Esse telefone já está em uso.");
         return;
       }
@@ -200,22 +259,38 @@ export default function Cadastro() {
       await finalizarCadastroInicial();
 
       if (auth.currentUser) {
-        await sendEmailVerification(auth.currentUser);
+        await safeRequest(() => sendEmailVerification(auth.currentUser!), {
+          timeoutMs: 12000,
+          tentativas: 1,
+          exigirInternet: true,
+          dedupeKey: `cadastro:verificacao:${auth.currentUser.uid}`,
+          priority: 8,
+        });
       }
 
       await signOut(auth);
 
+      logEvent(
+        "cadastro_concluido",
+        {
+          tipo: tipoSeguro,
+          email: emailNormalizado,
+        },
+        "Cadastro"
+      );
+
       Alert.alert(
         "Cadastro concluído",
         tipoSeguro === "cliente"
-          ? "Sua conta de cliente foi criada com sucesso. Verifique seu email antes de entrar."
-          : "Sua conta profissional foi criada com sucesso. Verifique seu email antes de entrar."
+          ? "Sua conta de cliente foi criada com sucesso.\nVerifique seu email antes de entrar."
+          : "Sua conta profissional foi criada com sucesso.\nVerifique seu email antes de entrar."
       );
 
       router.replace(
         tipoSeguro === "cliente" ? "/login-cliente" : "/login-profissional"
       );
     } catch (error: any) {
+      logError(error, "Cadastro.cadastrar");
       handleError(error, "Cadastro.cadastrar");
 
       const code = String(error?.code || "");
@@ -226,6 +301,11 @@ export default function Cadastro() {
         Alert.alert("Email inválido", "Digite um email válido.");
       } else if (code === "auth/weak-password") {
         Alert.alert("Senha fraca", "Escolha uma senha mais forte.");
+      } else if (code === "auth/too-many-requests") {
+        Alert.alert(
+          "Muitas tentativas",
+          "Houve muitas tentativas de cadastro em pouco tempo. Aguarde alguns minutos e tente novamente."
+        );
       } else {
         Alert.alert(
           "Erro no cadastro",
@@ -238,147 +318,172 @@ export default function Cadastro() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.wrapper}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.wrapper}>
+      <OfflineBanner />
+
+      <KeyboardAvoidingView
+        style={styles.wrapper}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.inner}>
-          <OfflineBanner />
+        <AppHeader
+          title={tipoSeguro === "cliente" ? "Cadastro do cliente" : "Cadastro profissional"}
+          showBackButton
+          compact
+        />
 
-          <AppHeader
-            title={tipoSeguro === "cliente" ? "Criar conta cliente" : "Criar conta profissional"}
-            subtitle={
-              tipoSeguro === "cliente"
-                ? "Cadastre-se para contratar profissionais no app"
-                : "Cadastre-se para oferecer seus serviços no app"
-            }
-            onBack={() => router.replace("/entrada")}
-            compact
-          />
-
-          <View style={styles.card}>
-            <Text style={styles.label}>Nome</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Digite seu nome"
-              placeholderTextColor={theme.colors.textMuted}
-              value={nome}
-              onChangeText={setNome}
-              editable={!carregando}
-            />
-
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Digite seu email"
-              placeholderTextColor={theme.colors.textMuted}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-              editable={!carregando}
-            />
-
-            <Text style={styles.label}>Celular</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="(00) 00000-0000"
-              placeholderTextColor={theme.colors.textMuted}
-              keyboardType="phone-pad"
-              value={celular}
-              onChangeText={(v) => setCelular(formatarCelular(v))}
-              editable={!carregando}
-            />
-
-            <Text style={styles.label}>Senha</Text>
-            <View style={styles.inputContainer}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.inner}>
+            <View style={styles.card}>
+              <Text style={styles.label}>Nome</Text>
               <TextInput
-                style={styles.inputComIcone}
-                placeholder="Digite sua senha"
+                value={nome}
+                onChangeText={setNome}
+                placeholder="Digite seu nome"
                 placeholderTextColor={theme.colors.textMuted}
-                secureTextEntry={!mostrarSenha}
-                value={senha}
-                onChangeText={setSenha}
                 editable={!carregando}
+                style={styles.input}
               />
-              <Pressable
-                onPress={() => setMostrarSenha(!mostrarSenha)}
-                disabled={carregando}
-                style={styles.eyeButton}
-              >
-                <Ionicons
-                  name={mostrarSenha ? "eye-off" : "eye"}
-                  size={22}
-                  color={theme.colors.textMuted}
-                />
-              </Pressable>
-            </View>
 
-            <Text style={styles.hint}>
-              Mínimo de 8 caracteres, com letra maiúscula, minúscula e número.
-            </Text>
-
-            <Text style={styles.label}>Repetir senha</Text>
-            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email</Text>
               <TextInput
-                style={styles.inputComIcone}
-                placeholder="Repita sua senha"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Digite seu email"
                 placeholderTextColor={theme.colors.textMuted}
-                secureTextEntry={!mostrarRepetirSenha}
-                value={repetirSenha}
-                onChangeText={setRepetirSenha}
+                autoCapitalize="none"
+                keyboardType="email-address"
                 editable={!carregando}
+                style={styles.input}
               />
-              <Pressable
-                onPress={() => setMostrarRepetirSenha(!mostrarRepetirSenha)}
-                disabled={carregando}
-                style={styles.eyeButton}
-              >
-                <Ionicons
-                  name={mostrarRepetirSenha ? "eye-off" : "eye"}
-                  size={22}
-                  color={theme.colors.textMuted}
+
+              <Text style={styles.label}>Celular</Text>
+              <TextInput
+                value={celular}
+                onChangeText={(v) => setCelular(formatarCelular(v))}
+                placeholder="(00) 00000-0000"
+                placeholderTextColor={theme.colors.textMuted}
+                keyboardType="phone-pad"
+                editable={!carregando}
+                style={styles.input}
+              />
+
+              <Text style={styles.label}>Senha</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  value={senha}
+                  onChangeText={setSenha}
+                  placeholder="Digite sua senha"
+                  placeholderTextColor={theme.colors.textMuted}
+                  secureTextEntry={!mostrarSenha}
+                  editable={!carregando}
+                  style={styles.inputComIcone}
                 />
+                <Pressable
+                  onPress={() => setMostrarSenha(!mostrarSenha)}
+                  disabled={carregando}
+                  style={styles.eyeButton}
+                >
+                  <Ionicons
+                    name={mostrarSenha ? "eye-off" : "eye"}
+                    size={20}
+                    color={theme.colors.textMuted}
+                  />
+                </Pressable>
+              </View>
+
+              <View style={styles.passwordChecklist}>
+                {renderPasswordRequirement(
+                  "Pelo menos 8 caracteres",
+                  senhaChecks.tamanho
+                )}
+                {renderPasswordRequirement(
+                  "Uma letra maiúscula",
+                  senhaChecks.maiuscula
+                )}
+                {renderPasswordRequirement(
+                  "Uma letra minúscula",
+                  senhaChecks.minuscula
+                )}
+                {renderPasswordRequirement("Um número", senhaChecks.numero)}
+              </View>
+
+              <Text style={styles.label}>Repetir senha</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  value={repetirSenha}
+                  onChangeText={setRepetirSenha}
+                  placeholder="Repita sua senha"
+                  placeholderTextColor={theme.colors.textMuted}
+                  secureTextEntry={!mostrarRepetirSenha}
+                  editable={!carregando}
+                  style={styles.inputComIcone}
+                />
+                <Pressable
+                  onPress={() => setMostrarRepetirSenha(!mostrarRepetirSenha)}
+                  disabled={carregando}
+                  style={styles.eyeButton}
+                >
+                  <Ionicons
+                    name={mostrarRepetirSenha ? "eye-off" : "eye"}
+                    size={20}
+                    color={theme.colors.textMuted}
+                  />
+                </Pressable>
+              </View>
+
+              {repetirSenha.length > 0 && (
+                <View style={styles.passwordChecklist}>
+                  {renderPasswordRequirement(
+                    "As senhas coincidem",
+                    senhaConfirmada
+                  )}
+                </View>
+              )}
+
+              <Pressable
+                style={styles.termsRow}
+                onPress={() => !carregando && setAceitouTermos(!aceitouTermos)}
+                disabled={carregando}
+              >
+                <Checkbox
+                  value={aceitouTermos}
+                  onValueChange={setAceitouTermos}
+                  disabled={carregando}
+                  color={aceitouTermos ? theme.colors.primary : undefined}
+                />
+                <Text style={styles.termsText}>
+                  Li e aceito os termos de uso e política de privacidade.
+                </Text>
               </Pressable>
-            </View>
 
-            <Pressable
-              style={styles.termsRow}
-              onPress={() => setAceitouTermos(!aceitouTermos)}
-              disabled={carregando}
-            >
-              <Checkbox
-                value={aceitouTermos}
-                onValueChange={setAceitouTermos}
-                color={aceitouTermos ? theme.colors.primary : undefined}
+              <ActionButton
+                title={
+                  carregando
+                    ? "Finalizando cadastro..."
+                    : tipoSeguro === "cliente"
+                    ? "Criar conta de cliente"
+                    : "Criar conta profissional"
+                }
+                onPress={cadastrar}
+                disabled={carregando}
               />
-              <Text style={styles.termsText}>
-                Li e aceito os termos de uso e política de privacidade.
-              </Text>
-            </Pressable>
 
-            <ActionButton
-              title={carregando ? "CRIANDO CONTA..." : "CRIAR CONTA"}
-              onPress={cadastrar}
-              variant="primary"
-              disabled={carregando}
-            />
+              {carregando && (
+                <View style={styles.loadingWrap}>
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <Text style={styles.loadingText}>
+                    Finalizando seu cadastro...
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-
-          {carregando && (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text style={styles.loadingText}>Finalizando seu cadastro...</Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -445,11 +550,23 @@ function createStyles(theme: any) {
       paddingLeft: 8,
       paddingVertical: 4,
     },
-    hint: {
+    passwordChecklist: {
+      marginBottom: 12,
+      gap: 6,
+    },
+    passwordRuleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    passwordRuleText: {
       color: theme.colors.textMuted,
       fontSize: 12,
-      marginBottom: 12,
       lineHeight: 18,
+    },
+    passwordRuleTextOk: {
+      color: theme.colors.primary,
+      fontWeight: "600",
     },
     termsRow: {
       flexDirection: "row",
@@ -469,6 +586,7 @@ function createStyles(theme: any) {
       alignItems: "center",
       justifyContent: "center",
       gap: 10,
+      marginTop: 12,
     },
     loadingText: {
       color: theme.colors.textMuted,

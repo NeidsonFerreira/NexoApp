@@ -257,9 +257,9 @@ export default function CadastroProfissional() {
       );
 
       const portfolioUrls = await Promise.all([
-        portfolio1 ? uploadImagemComRetry(portfolio1, `profissionais/${user.uid}/portfolio-1.jpg`) : Promise.resolve(""),
-        portfolio2 ? uploadImagemComRetry(portfolio2, `profissionais/${user.uid}/portfolio-2.jpg`) : Promise.resolve(""),
-        portfolio3 ? uploadImagemComRetry(portfolio3, `profissionais/${user.uid}/portfolio-3.jpg`) : Promise.resolve(""),
+        portfolio1 ? uploadImagemComRetry(portfolio1, `profissionais/${user.uid}/portfolio/portfolio-1.jpg`) : Promise.resolve(""),
+        portfolio2 ? uploadImagemComRetry(portfolio2, `profissionais/${user.uid}/portfolio/portfolio-2.jpg`) : Promise.resolve(""),
+        portfolio3 ? uploadImagemComRetry(portfolio3, `profissionais/${user.uid}/portfolio/portfolio-3.jpg`) : Promise.resolve(""),
       ]);
 
       await finalizarCadastroProfissional({
