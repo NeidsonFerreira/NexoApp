@@ -1,11 +1,9 @@
-const appJson = require("./app.json");
-
-module.exports = {
-  expo: {
-    ...appJson.expo,
+export default ({ config }) => {
+  return {
+    ...config,
     android: {
-      ...appJson.expo.android,
+      ...config.android,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
     },
-  },
+  };
 };
