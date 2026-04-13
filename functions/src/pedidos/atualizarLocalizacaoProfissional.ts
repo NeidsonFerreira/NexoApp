@@ -8,6 +8,7 @@ export const atualizarLocalizacaoProfissional = onCall(
   { region: REGION },
   async (request) => {
     const uid = requireAuthUid(request.auth?.uid);
+
     const { latitude, longitude } = validarLatitudeLongitude(
       request.data?.latitude,
       request.data?.longitude
@@ -21,11 +22,18 @@ export const atualizarLocalizacaoProfissional = onCall(
     }
 
     const user = snap.data() as Record<string, any>;
+
     if (user.tipo !== "profissional" && user.tipo !== "admin") {
       throw new HttpsError("permission-denied", "Usuário sem permissão.");
     }
 
-    await ref.set(
+    const pedidoAtivoId =
+      typeof user.pedidoAtivoId === "string" ? user.pedidoAtivoId : "";
+
+    const batch = db.batch();
+
+    batch.set(
+      ref,
       {
         latitude,
         longitude,
@@ -33,6 +41,22 @@ export const atualizarLocalizacaoProfissional = onCall(
       },
       { merge: true }
     );
+
+    if (pedidoAtivoId) {
+      const pedidoRef = db.collection("pedidos").doc(pedidoAtivoId);
+
+      batch.set(
+        pedidoRef,
+        {
+          latitudeProfissional: latitude,
+          longitudeProfissional: longitude,
+          atualizadoEm: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
 
     return { ok: true };
   }

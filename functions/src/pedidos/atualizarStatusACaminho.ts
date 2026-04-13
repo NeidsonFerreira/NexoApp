@@ -10,28 +10,60 @@ export const atualizarStatusACaminho = onCall(
     const uid = requireAuthUid(request.auth?.uid);
     const pedidoId = requirePedidoId(request.data?.pedidoId);
 
-    const ref = db.collection("pedidos").doc(pedidoId);
+    const pedidoRef = db.collection("pedidos").doc(pedidoId);
+    const profissionalRef = db.collection("users").doc(uid);
 
     await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
+      const [pedidoSnap, profissionalSnap] = await Promise.all([
+        tx.get(pedidoRef),
+        tx.get(profissionalRef),
+      ]);
 
-      if (!snap.exists) {
+      if (!pedidoSnap.exists) {
         throw new HttpsError("not-found", "Pedido não encontrado.");
       }
 
-      const pedido = snap.data() as Record<string, any>;
+      if (!profissionalSnap.exists) {
+        throw new HttpsError("not-found", "Profissional não encontrado.");
+      }
+
+      const pedido = pedidoSnap.data() as Record<string, any>;
+      const profissional = profissionalSnap.data() as Record<string, any>;
 
       if (pedido.profissionalId !== uid) {
         throw new HttpsError("permission-denied", "Sem permissão.");
       }
 
+      if (profissional.tipo !== "profissional" && profissional.tipo !== "admin") {
+        throw new HttpsError("permission-denied", "Usuário sem permissão.");
+      }
+
       validarTransicaoStatus(pedido.status, "a_caminho");
 
       tx.set(
-        ref,
+        pedidoRef,
         {
           status: "a_caminho",
           atualizadoEm: serverTimestamp(),
+
+          latitudeProfissional:
+            typeof profissional.latitude === "number"
+              ? profissional.latitude
+              : null,
+          longitudeProfissional:
+            typeof profissional.longitude === "number"
+              ? profissional.longitude
+              : null,
+        },
+        { merge: true }
+      );
+
+      tx.set(
+        profissionalRef,
+        {
+          emRota: true,
+          pedidoAtivoId: pedidoId,
+          emAtendimento: true,
         },
         { merge: true }
       );

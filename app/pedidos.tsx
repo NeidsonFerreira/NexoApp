@@ -597,12 +597,29 @@ export default function MeusPedidos() {
       const ok = await iniciarRastreamentoCliente(pedido);
       if (!ok) return;
 
+      const posicaoAtual = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      }).catch(() => null);
+
+      const payload: Record<string, any> = {
+        status: "cliente_a_caminho",
+      };
+
+      if (
+        posicaoAtual &&
+        coordenadaValida(
+          posicaoAtual.coords.latitude,
+          posicaoAtual.coords.longitude
+        )
+      ) {
+        payload.latitudeCliente = posicaoAtual.coords.latitude;
+        payload.longitudeCliente = posicaoAtual.coords.longitude;
+      }
+
       await safeRequest(
         () =>
           retry(() =>
-            updateDoc(doc(db, "pedidos", pedido.id), {
-              status: "cliente_a_caminho",
-            })
+            updateDoc(doc(db, "pedidos", pedido.id), payload)
           ),
         {
           timeoutMs: 15000,
@@ -682,6 +699,14 @@ export default function MeusPedidos() {
       params: {
         profissionalId: pedido.profissionalId,
         pedidoStatus: pedido.status,
+        clienteLat:
+          typeof pedido.latitudeCliente === "number"
+            ? String(pedido.latitudeCliente)
+            : undefined,
+        clienteLng:
+          typeof pedido.longitudeCliente === "number"
+            ? String(pedido.longitudeCliente)
+            : undefined,
       },
     });
   }

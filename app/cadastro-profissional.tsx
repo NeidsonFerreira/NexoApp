@@ -32,20 +32,34 @@ type FinalizarCadastroProfissionalResponse = {
 };
 
 const SERVICOS_DISPONIVEIS = [
-  { nome: "Eletricista", emoji: "⚡" }, { nome: "Encanador", emoji: "🚰" },
-  { nome: "Chaveiro", emoji: "🔑" }, { nome: "Mecânico", emoji: "🔧" },
-  { nome: "Tatuador", emoji: "🖊️" }, { nome: "Barbeiro", emoji: "💈" },
-  { nome: "Cabeleireiro", emoji: "💇" }, { nome: "Manicure", emoji: "💅" },
-  { nome: "Esteticista", emoji: "🧴" }, { nome: "Maquiador(a)", emoji: "💄" },
-  { nome: "Diarista", emoji: "🧼" }, { nome: "Faxineiro(a)", emoji: "🧹" },
-  { nome: "Marceneiro", emoji: "🪚" }, { nome: "Pedreiro", emoji: "🧱" },
-  { nome: "Pintor", emoji: "🎨" }, { nome: "Técnico de Ar Condicionado", emoji: "❄️" },
-  { nome: "Técnico de TV", emoji: "📺" }, { nome: "Técnico de Celular", emoji: "📱" },
-  { nome: "Técnico de Informática", emoji: "💻" }, { nome: "Lavador de Carro", emoji: "🚗" },
-  { nome: "Pet Groomer", emoji: "🐶" }, { nome: "Cozinheiro(a)", emoji: "🧑‍🍳" },
-  { nome: "DJ", emoji: "🎧" }, { nome: "Fotógrafo", emoji: "📸" },
-  { nome: "Videomaker", emoji: "🎥" }, { nome: "Motoboy", emoji: "🛵" },
-  { nome: "Frete/Mudança", emoji: "🚚" }, { nome: "Contador", emoji: "🧾" },
+  { nome: "Eletricista", emoji: "⚡" },
+  { nome: "Encanador", emoji: "🚰" },
+  { nome: "Chaveiro", emoji: "🔑" },
+  { nome: "Mecânico", emoji: "🔧" },
+  { nome: "Tatuador", emoji: "🖊️" },
+  { nome: "Barbeiro", emoji: "💈" },
+  { nome: "Cabeleireiro", emoji: "💇" },
+  { nome: "Manicure", emoji: "💅" },
+  { nome: "Esteticista", emoji: "🧴" },
+  { nome: "Maquiador(a)", emoji: "💄" },
+  { nome: "Diarista", emoji: "🧼" },
+  { nome: "Faxineiro(a)", emoji: "🧹" },
+  { nome: "Marceneiro", emoji: "🪚" },
+  { nome: "Pedreiro", emoji: "🧱" },
+  { nome: "Pintor", emoji: "🎨" },
+  { nome: "Técnico de Ar Condicionado", emoji: "❄️" },
+  { nome: "Técnico de TV", emoji: "📺" },
+  { nome: "Técnico de Celular", emoji: "📱" },
+  { nome: "Técnico de Informática", emoji: "💻" },
+  { nome: "Lavador de Carro", emoji: "🚗" },
+  { nome: "Pet Groomer", emoji: "🐶" },
+  { nome: "Cozinheiro(a)", emoji: "🧑‍🍳" },
+  { nome: "DJ", emoji: "🎧" },
+  { nome: "Fotógrafo", emoji: "📸" },
+  { nome: "Videomaker", emoji: "🎥" },
+  { nome: "Motoboy", emoji: "🛵" },
+  { nome: "Frete/Mudança", emoji: "🚚" },
+  { nome: "Contador", emoji: "🧾" },
   { nome: "Advogado", emoji: "⚖️" },
 ];
 
@@ -70,13 +84,17 @@ export default function CadastroProfissional() {
   const [portfolio3, setPortfolio3] = useState("");
   const [statusOnboarding, setStatusOnboarding] = useState("cadastro_inicial");
   const [planoAtual, setPlanoAtual] = useState("gratuito");
+  const [documentosEnviados, setDocumentosEnviados] = useState(false);
+  const [verificacaoStatus, setVerificacaoStatus] = useState("nao_enviado");
 
   const portfolioUris = useMemo(
     () => [portfolio1, portfolio2, portfolio3].filter(Boolean),
     [portfolio1, portfolio2, portfolio3]
   );
 
-  useEffect(() => { carregarDados(); }, []);
+  useEffect(() => {
+    carregarDados();
+  }, []);
 
   async function carregarDados() {
     try {
@@ -99,6 +117,8 @@ export default function CadastroProfissional() {
         setPortfolio3(dados.portfolio?.[2] || "");
         setStatusOnboarding(dados.onboardingStatus || "cadastro_inicial");
         setPlanoAtual(dados.plano || "gratuito");
+        setDocumentosEnviados(dados.documentosEnviados === true);
+        setVerificacaoStatus(dados.verificacaoStatus || "nao_enviado");
       }
     } catch (error) {
       handleError(error, "CadastroProfissional.carregarDados");
@@ -165,6 +185,7 @@ export default function CadastroProfissional() {
     if (uri.startsWith("http")) return uri;
 
     let ultimaFalha: unknown = null;
+
     for (let tentativa = 1; tentativa <= MAX_RETRY_UPLOAD; tentativa++) {
       try {
         const blob = await uriParaBlob(uri);
@@ -178,6 +199,7 @@ export default function CadastroProfissional() {
         }
       }
     }
+
     throw ultimaFalha || new Error("Falha no upload da imagem.");
   }
 
@@ -257,12 +279,27 @@ export default function CadastroProfissional() {
       );
 
       const portfolioUrls = await Promise.all([
-        portfolio1 ? uploadImagemComRetry(portfolio1, `profissionais/${user.uid}/portfolio/portfolio-1.jpg`) : Promise.resolve(""),
-        portfolio2 ? uploadImagemComRetry(portfolio2, `profissionais/${user.uid}/portfolio/portfolio-2.jpg`) : Promise.resolve(""),
-        portfolio3 ? uploadImagemComRetry(portfolio3, `profissionais/${user.uid}/portfolio/portfolio-3.jpg`) : Promise.resolve(""),
+        portfolio1
+          ? uploadImagemComRetry(
+              portfolio1,
+              `profissionais/${user.uid}/portfolio/portfolio-1.jpg`
+            )
+          : Promise.resolve(""),
+        portfolio2
+          ? uploadImagemComRetry(
+              portfolio2,
+              `profissionais/${user.uid}/portfolio/portfolio-2.jpg`
+            )
+          : Promise.resolve(""),
+        portfolio3
+          ? uploadImagemComRetry(
+              portfolio3,
+              `profissionais/${user.uid}/portfolio/portfolio-3.jpg`
+            )
+          : Promise.resolve(""),
       ]);
 
-      await finalizarCadastroProfissional({
+      const resposta = await finalizarCadastroProfissional({
         nome: nome.trim(),
         servicos: servicosSelecionados,
         descricao: descricao.trim(),
@@ -274,9 +311,24 @@ export default function CadastroProfissional() {
         portfolio: portfolioUrls.filter(Boolean),
       });
 
-      Alert.alert("Sucesso", "Cadastro profissional salvo com sucesso. Agora envie seus documentos para análise.", [
-        { text: "OK", onPress: () => router.push("/verificacao-profissional") },
-      ]);
+      if (resposta?.onboardingStatus) {
+        setStatusOnboarding(resposta.onboardingStatus);
+      }
+
+      const primeiraVezSemDocumentos =
+        !documentosEnviados && verificacaoStatus === "nao_enviado";
+
+      if (primeiraVezSemDocumentos) {
+        Alert.alert(
+          "Sucesso",
+          "Cadastro profissional salvo com sucesso. Agora envie seus documentos para análise.",
+          [{ text: "OK", onPress: () => router.push("/verificacao-profissional") }]
+        );
+      } else {
+        Alert.alert("Sucesso", "Cadastro profissional atualizado com sucesso.");
+      }
+
+      await carregarDados();
     } catch (error: any) {
       handleError(error, "CadastroProfissional.salvarCadastro");
       Alert.alert("Erro", error?.message || "Não foi possível salvar.");
@@ -288,7 +340,11 @@ export default function CadastroProfissional() {
   function renderBoxImagem(uri: string, onPress: () => void, label: string) {
     return (
       <TouchableOpacity style={styles.boxImagem} onPress={onPress}>
-        {uri ? <Image source={{ uri }} style={styles.imagemPortfolio} /> : <Text style={styles.textoImagem}>{label}</Text>}
+        {uri ? (
+          <Image source={{ uri }} style={styles.imagemPortfolio} />
+        ) : (
+          <Text style={styles.textoImagem}>{label}</Text>
+        )}
       </TouchableOpacity>
     );
   }
@@ -303,30 +359,56 @@ export default function CadastroProfissional() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <OfflineBanner />
 
         <Text style={styles.titulo}>Cadastro Profissional</Text>
-        <Text style={styles.subtitulo}>Monte seu perfil para aparecer bonito na lista, perfil e mapa</Text>
+        <Text style={styles.subtitulo}>
+          Monte seu perfil para aparecer bonito na lista, perfil e mapa
+        </Text>
 
         <View style={styles.statusCard}>
           <Text style={styles.statusTitle}>Status do onboarding</Text>
           <Text style={styles.statusText}>Atual: {statusOnboarding}</Text>
           <Text style={styles.statusText}>Plano atual: {planoAtual}</Text>
+          <Text style={styles.statusText}>
+            Documentos enviados: {documentosEnviados ? "sim" : "não"}
+          </Text>
+          <Text style={styles.statusText}>
+            Verificação: {verificacaoStatus}
+          </Text>
         </View>
 
-        <Text style={styles.avisoFluxo}>Depois de salvar seu perfil, você poderá enviar seus documentos para ativar sua conta.</Text>
+        <Text style={styles.avisoFluxo}>
+          Depois de salvar seu perfil, você poderá enviar seus documentos para ativar sua conta.
+        </Text>
 
         <Text style={styles.label}>Foto de perfil</Text>
         <View style={styles.fotoPerfilArea}>
-          <TouchableOpacity style={styles.fotoPerfilBox} onPress={() => escolherImagem(setFotoPerfil)}>
-            {fotoPerfil ? <Image source={{ uri: fotoPerfil }} style={styles.fotoPerfil} /> : <Text style={styles.textoImagem}>Escolher foto</Text>}
+          <TouchableOpacity
+            style={styles.fotoPerfilBox}
+            onPress={() => escolherImagem(setFotoPerfil)}
+          >
+            {fotoPerfil ? (
+              <Image source={{ uri: fotoPerfil }} style={styles.fotoPerfil} />
+            ) : (
+              <Text style={styles.textoImagem}>Escolher foto</Text>
+            )}
           </TouchableOpacity>
         </View>
 
         <Text style={styles.label}>Portfólio</Text>
-        <Text style={styles.helperText}>Envie até 3 imagens. Pelo menos 1 é obrigatória.</Text>
+        <Text style={styles.helperText}>
+          Envie até 3 imagens. Pelo menos 1 é obrigatória.
+        </Text>
         <View style={styles.portfolioRow}>
           {renderBoxImagem(portfolio1, () => escolherImagem(setPortfolio1), "Foto 1")}
           {renderBoxImagem(portfolio2, () => escolherImagem(setPortfolio2), "Foto 2")}
@@ -334,10 +416,18 @@ export default function CadastroProfissional() {
         </View>
 
         <Text style={styles.label}>Nome</Text>
-        <TextInput style={styles.input} value={nome} onChangeText={setNome} placeholder="Seu nome profissional" placeholderTextColor={theme.colors.textMuted} />
+        <TextInput
+          style={styles.input}
+          value={nome}
+          onChangeText={setNome}
+          placeholder="Seu nome profissional"
+          placeholderTextColor={theme.colors.textMuted}
+        />
 
         <Text style={styles.label}>Serviços</Text>
-        <Text style={styles.helperText}>Selecione até 5 serviços. O primeiro selecionado vira o principal.</Text>
+        <Text style={styles.helperText}>
+          Selecione até 5 serviços. O primeiro selecionado vira o principal.
+        </Text>
         <View style={styles.servicosGrid}>
           {SERVICOS_DISPONIVEIS.map((item) => {
             const ativo = servicosSelecionados.includes(item.nome);
@@ -349,14 +439,18 @@ export default function CadastroProfissional() {
                 activeOpacity={0.9}
               >
                 <Text style={styles.servicoEmoji}>{item.emoji}</Text>
-                <Text style={[styles.servicoTexto, ativo && styles.servicoTextoAtivo]}>{item.nome}</Text>
+                <Text style={[styles.servicoTexto, ativo && styles.servicoTextoAtivo]}>
+                  {item.nome}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
         {servicosSelecionados.length > 0 && (
-          <Text style={styles.servicoSelecionado}>Selecionados: {servicosSelecionados.join(", ")}</Text>
+          <Text style={styles.servicoSelecionado}>
+            Selecionados: {servicosSelecionados.join(", ")}
+          </Text>
         )}
 
         <Text style={styles.label}>Descrição</Text>
@@ -394,14 +488,18 @@ export default function CadastroProfissional() {
             style={[styles.tipoBotao, tipoAtendimento === "fixo" && styles.tipoBotaoAtivo]}
             onPress={() => setTipoAtendimento("fixo")}
           >
-            <Text style={[styles.tipoTexto, tipoAtendimento === "fixo" && styles.tipoTextoAtivo]}>📍 Fixo</Text>
+            <Text style={[styles.tipoTexto, tipoAtendimento === "fixo" && styles.tipoTextoAtivo]}>
+              📍 Fixo
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.tipoBotao, tipoAtendimento === "movel" && styles.tipoBotaoAtivo]}
             onPress={() => setTipoAtendimento("movel")}
           >
-            <Text style={[styles.tipoTexto, tipoAtendimento === "movel" && styles.tipoTextoAtivo]}>🚗 Móvel</Text>
+            <Text style={[styles.tipoTexto, tipoAtendimento === "movel" && styles.tipoTextoAtivo]}>
+              🚗 Móvel
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -416,12 +514,20 @@ export default function CadastroProfissional() {
               placeholderTextColor={theme.colors.textMuted}
               multiline
             />
-            <Text style={styles.helperText}>A localização será resolvida no backend para evitar coordenadas falsas.</Text>
+            <Text style={styles.helperText}>
+              A localização será resolvida no backend para evitar coordenadas falsas.
+            </Text>
           </>
         )}
 
-        <TouchableOpacity style={[styles.botaoSalvar, salvando && styles.botaoSalvarDisabled]} onPress={salvarCadastro} disabled={salvando}>
-          <Text style={styles.textoBotao}>{salvando ? "SALVANDO..." : "SALVAR CADASTRO"}</Text>
+        <TouchableOpacity
+          style={[styles.botaoSalvar, salvando && styles.botaoSalvarDisabled]}
+          onPress={salvarCadastro}
+          disabled={salvando}
+        >
+          <Text style={styles.textoBotao}>
+            {salvando ? "SALVANDO..." : "SALVAR CADASTRO"}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -433,38 +539,140 @@ function createStyles(theme: any) {
     flex: { flex: 1 },
     container: { flex: 1, backgroundColor: theme.colors.background },
     content: { padding: 18, paddingBottom: 40 },
-    center: { flex: 1, backgroundColor: theme.colors.background, justifyContent: "center", alignItems: "center" },
+    center: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      justifyContent: "center",
+      alignItems: "center",
+    },
     loadingText: { color: theme.colors.text, marginTop: 12, fontSize: 15 },
     titulo: { color: theme.colors.text, fontSize: 28, fontWeight: "bold", marginBottom: 6 },
     subtitulo: { color: theme.colors.textMuted, fontSize: 15, marginBottom: 10 },
-    statusCard: { backgroundColor: theme.colors.card, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, padding: 14, marginBottom: 12 },
+    statusCard: {
+      backgroundColor: theme.colors.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: 14,
+      marginBottom: 12,
+    },
     statusTitle: { color: theme.colors.text, fontWeight: "bold", marginBottom: 6 },
     statusText: { color: theme.colors.textMuted, lineHeight: 20 },
-    avisoFluxo: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 19, marginBottom: 18 },
-    label: { color: theme.colors.text, fontSize: 15, fontWeight: "bold", marginBottom: 8, marginTop: 12 },
-    helperText: { color: theme.colors.textMuted, fontSize: 12, marginBottom: 8, lineHeight: 18 },
+    avisoFluxo: {
+      color: theme.colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 19,
+      marginBottom: 18,
+    },
+    label: {
+      color: theme.colors.text,
+      fontSize: 15,
+      fontWeight: "bold",
+      marginBottom: 8,
+      marginTop: 12,
+    },
+    helperText: {
+      color: theme.colors.textMuted,
+      fontSize: 12,
+      marginBottom: 8,
+      lineHeight: 18,
+    },
     fotoPerfilArea: { alignItems: "center", marginBottom: 8 },
-    fotoPerfilBox: { width: 130, height: 130, borderRadius: 65, backgroundColor: theme.colors.card, borderWidth: 2, borderColor: theme.colors.border, justifyContent: "center", alignItems: "center", overflow: "hidden" },
+    fotoPerfilBox: {
+      width: 130,
+      height: 130,
+      borderRadius: 65,
+      backgroundColor: theme.colors.card,
+      borderWidth: 2,
+      borderColor: theme.colors.border,
+      justifyContent: "center",
+      alignItems: "center",
+      overflow: "hidden",
+    },
     fotoPerfil: { width: "100%", height: "100%" },
     portfolioRow: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-    boxImagem: { flex: 1, height: 110, backgroundColor: theme.colors.card, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, justifyContent: "center", alignItems: "center", overflow: "hidden" },
+    boxImagem: {
+      flex: 1,
+      height: 110,
+      backgroundColor: theme.colors.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      justifyContent: "center",
+      alignItems: "center",
+      overflow: "hidden",
+    },
     imagemPortfolio: { width: "100%", height: "100%" },
-    textoImagem: { color: theme.colors.textMuted, fontWeight: "bold", textAlign: "center", paddingHorizontal: 8 },
-    input: { backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 14, color: theme.colors.text, fontSize: 15 },
+    textoImagem: {
+      color: theme.colors.textMuted,
+      fontWeight: "bold",
+      textAlign: "center",
+      paddingHorizontal: 8,
+    },
+    input: {
+      backgroundColor: theme.colors.card,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      color: theme.colors.text,
+      fontSize: 15,
+    },
     inputGrande: { minHeight: 95, textAlignVertical: "top" },
     servicosGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-    servicoCard: { width: "48%", backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
-    servicoCardAtivo: { backgroundColor: theme.colors.success, borderColor: theme.colors.success },
+    servicoCard: {
+      width: "48%",
+      backgroundColor: theme.colors.card,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 18,
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    servicoCardAtivo: {
+      backgroundColor: theme.colors.success,
+      borderColor: theme.colors.success,
+    },
     servicoEmoji: { fontSize: 24, marginBottom: 8 },
-    servicoTexto: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: "bold", textAlign: "center" },
+    servicoTexto: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "bold",
+      textAlign: "center",
+    },
     servicoTextoAtivo: { color: "#fff" },
-    servicoSelecionado: { color: theme.colors.success, fontSize: 14, fontWeight: "bold", marginTop: 10 },
+    servicoSelecionado: {
+      color: theme.colors.success,
+      fontSize: 14,
+      fontWeight: "bold",
+      marginTop: 10,
+    },
     tipoRow: { flexDirection: "row", gap: 10 },
-    tipoBotao: { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 16, paddingVertical: 14, alignItems: "center" },
-    tipoBotaoAtivo: { borderColor: theme.colors.success, backgroundColor: theme.colors.success },
+    tipoBotao: {
+      flex: 1,
+      backgroundColor: theme.colors.card,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 16,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
+    tipoBotaoAtivo: {
+      borderColor: theme.colors.success,
+      backgroundColor: theme.colors.success,
+    },
     tipoTexto: { color: theme.colors.text, fontWeight: "bold", fontSize: 15 },
     tipoTextoAtivo: { color: "#fff" },
-    botaoSalvar: { backgroundColor: theme.colors.primary, borderRadius: 18, paddingVertical: 16, alignItems: "center", marginTop: 24 },
+    botaoSalvar: {
+      backgroundColor: theme.colors.primary,
+      borderRadius: 18,
+      paddingVertical: 16,
+      alignItems: "center",
+      marginTop: 24,
+    },
     botaoSalvarDisabled: { opacity: 0.7 },
     textoBotao: { color: "#fff", fontWeight: "bold", fontSize: 16 },
   });

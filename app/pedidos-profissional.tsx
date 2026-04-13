@@ -396,32 +396,16 @@ export default function PedidosProfissional() {
 
       const clientesArray = Array.from(clientesSet);
 
-      const clientesEntries = await Promise.all(
-        clientesArray.map(async (clienteId) => {
-          try {
-            const snap = await getDoc(doc(db, "users", clienteId));
-            if (!snap.exists()) {
-              return [clienteId, {}] as const;
-            }
+      const clientesMapa: Record<string, ClienteInfo> = {};
+      clientesArray.forEach((clienteId) => {
+        const pedidoFonte = fonte.find((pedido) => pedido.clienteId === clienteId);
 
-            const dados = snap.data() as any;
-            return [
-              clienteId,
-              {
-                nome: dados.nome || dados.email || "Cliente",
-                fotoPerfil: dados.fotoPerfil || "",
-                email: dados.email || "",
-              },
-            ] as const;
-          } catch (error) {
-            handleError(error, "PedidosProfissional.carregarClienteInfo");
-            return [clienteId, {}] as const;
-          }
-        })
-      );
-
-      const clientesMapa: Record<string, ClienteInfo> =
-        Object.fromEntries(clientesEntries);
+        clientesMapa[clienteId] = {
+          nome: pedidoFonte?.nomeCliente || "Cliente",
+          fotoPerfil: pedidoFonte?.fotoCliente || "",
+          email: pedidoFonte?.emailCliente || "",
+        };
+      });
 
       let avaliacoesMapa: Record<string, AvaliacaoInfo> = {};
 
@@ -642,7 +626,7 @@ export default function PedidosProfissional() {
       }
 
       if (status === "a_caminho") {
-        const fn = httpsCallable(functions, "atualizarStatusAaminho");
+        const fn = httpsCallable(functions, "atualizarStatusACaminho");
         const minutosTexto = pedido.tempoTexto.match(/\d+/)?.[0];
         await fn({
           pedidoId: pedido.id,
@@ -692,6 +676,12 @@ export default function PedidosProfissional() {
         clienteLng: String(p.longitudeCliente),
         clienteNome: clientesInfo[p.clienteId]?.nome || p.nomeCliente,
         pedidoStatus: p.status,
+        profLat: coordenadaValida(profissional?.latitude, profissional?.longitude)
+          ? String(profissional?.latitude)
+          : "",
+        profLng: coordenadaValida(profissional?.latitude, profissional?.longitude)
+          ? String(profissional?.longitude)
+          : "",
       },
     });
   }

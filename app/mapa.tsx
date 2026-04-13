@@ -269,11 +269,15 @@ export default function Mapa() {
     clienteLng?: string;
     clienteNome?: string;
     pedidoStatus?: string;
+    profLat?: string;
+    profLng?: string;
   }>();
 
   const clienteIdParam = params.clienteId ? String(params.clienteId) : "";
   const clienteLatParam = params.clienteLat ? Number(params.clienteLat) : null;
   const clienteLngParam = params.clienteLng ? Number(params.clienteLng) : null;
+  const profLatParam = params.profLat ? Number(params.profLat) : null;
+  const profLngParam = params.profLng ? Number(params.profLng) : null;
   const clienteNomeParam = params.clienteNome
     ? String(params.clienteNome)
     : "Cliente";
@@ -542,9 +546,14 @@ export default function Mapa() {
   }
 
   const baseProfissionalFixo: Coordenadas | null =
-    contaAtual?.tipo === "profissional" &&
-    contaAtual?.tipoAtendimento === "fixo" &&
-    coordenadaValida(contaAtual?.latitude, contaAtual?.longitude)
+    coordenadaValida(profLatParam, profLngParam)
+      ? {
+          latitude: profLatParam as number,
+          longitude: profLngParam as number,
+        }
+      : contaAtual?.tipo === "profissional" &&
+        contaAtual?.tipoAtendimento === "fixo" &&
+        coordenadaValida(contaAtual?.latitude, contaAtual?.longitude)
       ? {
           latitude: contaAtual.latitude as number,
           longitude: contaAtual.longitude as number,
@@ -1208,15 +1217,17 @@ export default function Mapa() {
     if (!mapaPronto) return;
 
     const centro =
-      rotaProfissionalAcompanhandoClienteFixo && baseProfissionalFixo
-        ? baseProfissionalFixo
+      rotaProfissionalAcompanhandoClienteFixo && clienteSelecionadoRef.current
+        ? {
+            latitude: clienteSelecionadoRef.current.latitude,
+            longitude: clienteSelecionadoRef.current.longitude,
+          }
         : coordenadaSnapNaVia || localAtualRef.current;
 
     if (!centro) return;
     if (!podeAtualizarCamera()) return;
 
-    const usandoBaseFixa =
-      rotaProfissionalAcompanhandoClienteFixo && !!baseProfissionalFixo;
+    const usandoBaseFixa = false;
 
     const distanciaCurva =
       typeof distanciaProximaInstrucao === "number" &&
@@ -1258,6 +1269,46 @@ export default function Mapa() {
       expoClientExtra?.googleMapsApiKey ||
       ""
     );
+  }
+
+  async function fetchJsonSingleRead(url: string, timeoutMs = 20000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const rawText = await response.text();
+      let data: any = null;
+
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch (parseError) {
+          throw new Error(
+            `Resposta inválida da API (${response.status}): ${rawText.slice(0, 180)}`
+          );
+        }
+      }
+
+      if (!response.ok) {
+        const erroApi =
+          data?.error_message ||
+          data?.status ||
+          `Falha HTTP ${response.status}`;
+        throw new Error(String(erroApi));
+      }
+
+      return { response, data };
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   function decodificarPolyline(encoded: string) {
@@ -1315,19 +1366,7 @@ export default function Mapa() {
           `${encodeURIComponent(enderecoCompleto)}` +
           `&language=pt-BR&region=br&key=${googleMapsApiKey}`;
 
-        const response = await safeRequest(() => fetch(url), {
-        timeoutMs: 20000,
-        tentativas: 1,
-        exigirInternet: true,
-        dedupeKey: `mapa:geocode:${chave}`,
-        priority: 10,
-      });
-
-        if (!response.ok) {
-          throw new Error(`Falha HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
+        const { data } = await fetchJsonSingleRead(url, 20000);
 
         if (
           data?.status === "OK" &&
@@ -1556,24 +1595,38 @@ export default function Mapa() {
         try {
           const snapConta = await getDoc(doc(db, "users", user.uid));
           if (snapConta.exists()) {
-            setContaAtual({
+            const contaData = {
               id: snapConta.id,
               ...(snapConta.data() as any),
-            });
+            };
+            setContaAtual(contaData);
             await carregarContextoPedidoAtivo(user.uid);
+
+            if (coordenadaValida(clienteLatAtivo, clienteLngAtivo)) {
+              setClienteSelecionado({
+                id: clienteIdAtivo || undefined,
+                latitude: clienteLatAtivo as number,
+                longitude: clienteLngAtivo as number,
+                nome: clienteNomeAtivo,
+              });
+            }
+
+            if (
+              contaData.tipo === "profissional" &&
+              contaData.tipoAtendimento === "fixo" &&
+              coordenadaValida(clienteLatAtivo, clienteLngAtivo) &&
+              coordenadaValida(profLatParam, profLngParam)
+            ) {
+              if (!aberturaRapidaFeitaRef.current) {
+                aberturaRapidaFeitaRef.current = true;
+                setCarregando(false);
+              }
+              return true;
+            }
           }
         } catch (error) {
           console.log("Erro ao carregar conta atual:", error);
         }
-      }
-
-      if (coordenadaValida(clienteLatAtivo, clienteLngAtivo)) {
-        setClienteSelecionado({
-          id: clienteIdAtivo || undefined,
-          latitude: clienteLatAtivo as number,
-          longitude: clienteLngAtivo as number,
-          nome: clienteNomeAtivo,
-        });
       }
 
       const ultimaPosicao = await Location.getLastKnownPositionAsync({ maxAge: 60000 }).catch(() => null);
@@ -1908,18 +1961,41 @@ export default function Mapa() {
         return;
       }
 
+      const nomeFallback =
+        clienteSelecionado?.nome || clienteNomeAtivo || "Cliente";
+      const fotoFallback = clienteSelecionado?.fotoPerfil || "";
+      const emailFallback = clientePerfil?.email || "";
+
+      if (contaAtual?.tipo === "profissional") {
+        setClientePerfil({
+          id: clienteIdAtivo,
+          nome: nomeFallback,
+          fotoPerfil: fotoFallback,
+          email: emailFallback,
+        });
+        return;
+      }
+
       try {
         const snap = await getDoc(doc(db, "users", clienteIdAtivo));
 
-        if (!snap.exists() || cancelado) return;
+        if (!snap.exists() || cancelado) {
+          setClientePerfil({
+            id: clienteIdAtivo,
+            nome: nomeFallback,
+            fotoPerfil: fotoFallback,
+            email: emailFallback,
+          });
+          return;
+        }
 
         const dados = snap.data() as any;
 
         setClientePerfil({
           id: snap.id,
-          nome: dados.nome || clienteNomeAtivo || dados.email || "Cliente",
-          fotoPerfil: dados.fotoPerfil || "",
-          email: dados.email || "",
+          nome: dados.nome || nomeFallback || dados.email || "Cliente",
+          fotoPerfil: dados.fotoPerfil || fotoFallback || "",
+          email: dados.email || emailFallback || "",
         });
 
         setClienteSelecionado((prev) =>
@@ -1927,12 +2003,30 @@ export default function Mapa() {
             ? {
                 ...prev,
                 id: snap.id,
-                nome: dados.nome || clienteNomeAtivo || dados.email || "Cliente",
-                fotoPerfil: dados.fotoPerfil || "",
+                nome: dados.nome || nomeFallback || dados.email || "Cliente",
+                fotoPerfil: dados.fotoPerfil || fotoFallback || "",
               }
             : prev
         );
-      } catch (error) {
+      } catch (error: any) {
+        const code = String(error?.code || "");
+        const message = String(error?.message || "");
+
+        if (
+          code.includes("permission") ||
+          message.toLowerCase().includes("insufficient permissions")
+        ) {
+          if (!cancelado) {
+            setClientePerfil({
+              id: clienteIdAtivo,
+              nome: nomeFallback,
+              fotoPerfil: fotoFallback,
+              email: emailFallback,
+            });
+          }
+          return;
+        }
+
         handleError(error, "Mapa.carregarClientePerfil");
       }
     }
@@ -1942,7 +2036,14 @@ export default function Mapa() {
     return () => {
       cancelado = true;
     };
-  }, [clienteIdAtivo, clienteNomeParam]);
+  }, [
+    clienteIdAtivo,
+    clienteNomeAtivo,
+    clienteSelecionado?.nome,
+    clienteSelecionado?.fotoPerfil,
+    clientePerfil?.email,
+    contaAtual?.tipo,
+  ]);
 
 
   function nivelTransitoPorAtraso(
@@ -2007,19 +2108,7 @@ export default function Mapa() {
         `&destination=${destinoLat},${destinoLng}` +
         `&mode=driving&departure_time=now&traffic_model=best_guess&language=pt-BR&region=br&key=${googleMapsApiKey}`;
 
-      const response = await safeRequest(() => fetch(url), {
-        timeoutMs: 20000,
-        tentativas: 1,
-        exigirInternet: true,
-        dedupeKey: `mapa:rota:${chaveRota}`,
-        priority: 10,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Falha HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
+      const { data } = await fetchJsonSingleRead(url, 20000);
 
       if (
         !data ||
@@ -2252,10 +2341,10 @@ export default function Mapa() {
       if (!cliente) return;
 
       buscarRotaNoApp(
-        baseProfissionalFixo.latitude,
-        baseProfissionalFixo.longitude,
         cliente.latitude,
-        cliente.longitude
+        cliente.longitude,
+        baseProfissionalFixo.latitude,
+        baseProfissionalFixo.longitude
       );
 
       if (intervalRotaRef.current) {
@@ -2267,10 +2356,10 @@ export default function Mapa() {
         if (!clienteAtual) return;
 
         buscarRotaNoApp(
-          baseProfissionalFixo.latitude,
-          baseProfissionalFixo.longitude,
           clienteAtual.latitude,
-          clienteAtual.longitude
+          clienteAtual.longitude,
+          baseProfissionalFixo.latitude,
+          baseProfissionalFixo.longitude
         );
       }, 10000);
 
@@ -2753,7 +2842,27 @@ function textoETA() {
   }, [profissionais, localAtual]);
 
   const regiaoInicial: Region =
-    rotaProfissionalAcompanhandoClienteFixo && baseProfissionalFixo
+    rotaProfissionalAcompanhandoClienteFixo &&
+    baseProfissionalFixo &&
+    clienteSelecionado &&
+    coordenadaValida(clienteSelecionado.latitude, clienteSelecionado.longitude)
+      ? {
+          latitude:
+            (baseProfissionalFixo.latitude + clienteSelecionado.latitude) / 2,
+          longitude:
+            (baseProfissionalFixo.longitude + clienteSelecionado.longitude) / 2,
+          latitudeDelta:
+            Math.max(
+              0.01,
+              Math.abs(baseProfissionalFixo.latitude - clienteSelecionado.latitude) * 1.8
+            ),
+          longitudeDelta:
+            Math.max(
+              0.01,
+              Math.abs(baseProfissionalFixo.longitude - clienteSelecionado.longitude) * 1.8
+            ),
+        }
+      : rotaProfissionalAcompanhandoClienteFixo && baseProfissionalFixo
       ? {
           latitude: baseProfissionalFixo.latitude,
           longitude: baseProfissionalFixo.longitude,
@@ -2777,11 +2886,11 @@ function textoETA() {
   const mostrarInfoSimples =
     !trajetoAtivo && !profissionalSelecionado && !clienteSelecionado;
 
-  const mostrarOverlayCarregando = (!mapaPronto || carregando || !localAtual) && !aguardandoContextoTrajeto;
+  const mostrarOverlayCarregando = (!mapaPronto || carregando || (!localAtual && !rotaProfissionalAcompanhandoClienteFixo)) && !aguardandoContextoTrajeto && !(rotaProfissionalAcompanhandoClienteFixo && !!baseProfissionalFixo && !!clienteSelecionado);
 
   const coordenadaVeiculoAtual: Coordenadas | null = useMemo(() => {
-    if (rotaProfissionalAcompanhandoClienteFixo && baseProfissionalFixo) {
-      return baseProfissionalFixo;
+    if (rotaProfissionalAcompanhandoClienteFixo) {
+      return null;
     }
 
     if (deveGuiarPeloUsuarioAtual() && coordenadaSnapNaVia) {
@@ -2791,7 +2900,7 @@ function textoETA() {
     return localAtual;
   }, [
     rotaProfissionalAcompanhandoClienteFixo,
-    baseProfissionalFixo,
+    clienteSelecionado,
     coordenadaSnapNaVia,
     localAtual,
     rotaClienteIndoAteProfissionalFixo,
@@ -2847,6 +2956,53 @@ function textoETA() {
     [proximoManeuver]
   );
 
+
+  useEffect(() => {
+    if (
+      !mapaPronto ||
+      !mapRef.current ||
+      !rotaProfissionalAcompanhandoClienteFixo ||
+      !baseProfissionalFixo ||
+      !clienteSelecionado ||
+      !coordenadaValida(clienteSelecionado.latitude, clienteSelecionado.longitude)
+    ) {
+      return;
+    }
+
+    const id = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(
+        [
+          {
+            latitude: clienteSelecionado.latitude,
+            longitude: clienteSelecionado.longitude,
+          },
+          {
+            latitude: baseProfissionalFixo.latitude,
+            longitude: baseProfissionalFixo.longitude,
+          },
+        ],
+        {
+          edgePadding: {
+            top: 120,
+            right: 60,
+            bottom: 280,
+            left: 60,
+          },
+          animated: true,
+        }
+      );
+    }, 120);
+
+    return () => clearTimeout(id);
+  }, [
+    mapaPronto,
+    rotaProfissionalAcompanhandoClienteFixo,
+    baseProfissionalFixo?.latitude,
+    baseProfissionalFixo?.longitude,
+    clienteSelecionado?.latitude,
+    clienteSelecionado?.longitude,
+  ]);
+
   const laneGuidance = useMemo(
     () => obterLaneGuidance(proximoManeuver, proximaInstrucao),
     [proximoManeuver, proximaInstrucao]
@@ -2858,7 +3014,7 @@ function textoETA() {
         ref={mapRef}
         style={styles.map}
         initialRegion={regiaoInicial}
-        showsUserLocation={true}
+        showsUserLocation={!rotaProfissionalAcompanhandoClienteFixo}
         loadingEnabled
         onMapReady={() => setMapaPronto(true)}
         onPanDrag={() => setSeguindoCamera(false)}
@@ -2899,7 +3055,7 @@ function textoETA() {
             </Marker>
           )}
 
-        {profissionaisRender.map((prof) => {
+        {!rotaProfissionalAcompanhandoClienteFixo && profissionaisRender.map((prof) => {
           const plano = planoDoProfissional(prof.plano);
 
           const borderColor =
@@ -2923,36 +3079,61 @@ function textoETA() {
                 longitude: prof.longitude as number,
               }}
               anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
               onPress={() => {
                 setProfissionalSelecionado(prof);
                 if (!trajetoAtivo) limparRota();
               }}
             >
-              <View
-                style={[
-                  styles.markerBubble,
-                  {
-                    width: markerSize,
-                    height: markerSize,
-                    borderRadius: markerSize / 2,
-                    borderColor,
-                  },
-                ]}
-              >
-                <Image
-                  source={{ uri: fotoPadrao(prof.fotoPerfil) }}
-                  style={{
-                    width: imageSize,
-                    height: imageSize,
-                    borderRadius: imageSize / 2,
-                  }}
-                />
+              <View collapsable={false} style={styles.markerWrapper}>
+                <View
+                  style={[
+                    styles.markerBubble,
+                    {
+                      width: markerSize,
+                      height: markerSize,
+                      borderRadius: markerSize / 2,
+                      borderColor,
+                    },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: fotoPadrao(prof.fotoPerfil) }}
+                    style={{
+                      width: imageSize,
+                      height: imageSize,
+                      borderRadius: imageSize / 2,
+                    }}
+                  />
+                </View>
               </View>
             </Marker>
           );
         })}
 
-        {rotaRestante.length > 1 && (
+                {rotaProfissionalAcompanhandoClienteFixo &&
+          baseProfissionalFixo &&
+          clienteSelecionado &&
+          rotaRestante.length <= 1 && (
+            <Polyline
+              coordinates={[
+                {
+                  latitude: clienteSelecionado.latitude,
+                  longitude: clienteSelecionado.longitude,
+                },
+                {
+                  latitude: baseProfissionalFixo.latitude,
+                  longitude: baseProfissionalFixo.longitude,
+                },
+              ]}
+              strokeWidth={5}
+              strokeColor={theme.colors.primary}
+              lineCap="round"
+              lineJoin="round"
+            />
+          )}
+
+{rotaRestante.length > 1 && (
           <>
             <Polyline
               coordinates={rotaRestante}
@@ -3156,17 +3337,20 @@ function textoETA() {
 
               <Text style={styles.routeStatus}>{textoStatusTrajeto()}</Text>
 
-              {!!rotaInfo && (
-                <Text style={styles.routeInfoCompact}>
-                  {`📏 ${rotaInfo.distanciaKm.toFixed(1)} km • ⏱️ ${rotaInfo.duracaoMin} min`}
-                </Text>
-              )}
-
-              {!!rotaInfo && <Text style={styles.routeEta}>{textoETA()}</Text>}
+              {!!rotaInfo ? (
+                <>
+                  <Text style={styles.routeInfoCompact}>
+                    {`📏 ${rotaInfo.distanciaKm.toFixed(1)} km • ⏱️ ${rotaInfo.duracaoMin} min`}
+                  </Text>
+                  <Text style={styles.routeEta}>{textoETA()}</Text>
+                </>
+              ) : carregandoRota ? (
+                <Text style={styles.routeEta}>Calculando rota...</Text>
+              ) : null}
             </View>
           </View>
 
-          {!!proximaInstrucao && (
+          {deveGuiarPeloUsuarioAtual() && !!proximaInstrucao && (
             <View style={styles.maneuverBannerCompact}>
               <View style={styles.maneuverIconWrapCompact}>
                 <Text style={styles.maneuverIconText}>
@@ -3590,6 +3774,13 @@ function createStyles(theme: any) {
       backgroundColor: "#a855f7",
     },
 
+    markerWrapper: {
+      width: 64,
+      height: 64,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "visible",
+    },
     markerBubble: {
       backgroundColor: "#fff",
       borderWidth: 3,
