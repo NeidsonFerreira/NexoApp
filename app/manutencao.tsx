@@ -82,7 +82,7 @@ export default function Manutencao() {
             );
 
             if (dados.appEmManutencao === false) {
-              router.replace("/");
+              router.replace("/entrada");
               return;
             }
 
@@ -139,7 +139,7 @@ export default function Manutencao() {
         );
 
         if (dadosConfig.appEmManutencao === false) {
-          router.replace("/");
+          router.replace("/entrada");
           return;
         }
       }

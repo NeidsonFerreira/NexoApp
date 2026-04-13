@@ -758,7 +758,19 @@ export default function LoginProfissional() {
       );
     }
   }
-
+  function semAcessoAoEmail() {
+   Alert.alert(
+     "Recuperação da conta",
+     "Se você não tem mais acesso ao email cadastrado, fale com o suporte para validar sua identidade e recuperar a conta.",
+     [
+       { text: "Cancelar", style: "cancel" },
+       {
+         text: "Ir para ajuda",
+         onPress: () => router.push("/chat-suporte?origem=recuperacao"),
+       },
+     ]
+   );
+  }
   if (statusTela === "carregando") {
     return (
       <View style={styles.center}>
@@ -846,6 +858,14 @@ export default function LoginProfissional() {
               <View style={styles.linkWrap}>
                 <Pressable onPress={esqueceuSenha} disabled={entrando}>
                   <Text style={styles.linkText}>Esqueci minha senha</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.linkWrap}>
+                <Pressable onPress={semAcessoAoEmail} disabled={entrando}>
+                  <Text style={styles.linkText}>
+                    Não tenho mais acesso ao meu email
+                  </Text>
                 </Pressable>
               </View>
             </View>

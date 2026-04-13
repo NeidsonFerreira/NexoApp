@@ -437,7 +437,7 @@ export default function Configuracoes() {
             return;
           }
 
-          router.replace("/");
+          router.replace("/entrada");
         },
       },
     ]);

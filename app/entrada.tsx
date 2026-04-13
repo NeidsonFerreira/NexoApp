@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -14,8 +15,8 @@ import { OfflineBanner } from "../components/OfflineBanner";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppTheme } from "../contexts/ThemeContext";
-import { db } from "../lib/firebase";
 import { handleError } from "../lib/errorHandler";
+import { db } from "../lib/firebase";
 
 type Destino =
   | "loading"
@@ -53,7 +54,6 @@ export default function Entrada() {
         }
 
         const dadosConfig = snapConfig.data() as ConfigApp;
-
         setAppEmManutencao(dadosConfig.appEmManutencao === true);
         setAvisoGlobal(dadosConfig.avisoGlobal || "");
         setConfigCarregada(true);
@@ -107,6 +107,10 @@ export default function Entrada() {
     router.push(appEmManutencao ? "/manutencao" : "/login-profissional");
   }
 
+  function abrirAdminOculto() {
+    router.push("/login-admin");
+  }
+
   if (destino === "loading") {
     return (
       <View style={styles.center}>
@@ -130,20 +134,24 @@ export default function Entrada() {
   if (destino === "manutencao") return <Redirect href="/manutencao" />;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer scroll={false}>
       <OfflineBanner />
 
       <View style={styles.hero}>
-        <View style={styles.logoWrap}>
+        <Pressable
+          accessibilityRole="button"
+          onLongPress={abrirAdminOculto}
+          delayLongPress={10000}
+          style={styles.logoWrap}
+        >
           <Image
             source={require("../assets/images/logo.png")}
             style={styles.logo}
             resizeMode="contain"
           />
-        </View>
+        </Pressable>
 
         <Text style={styles.title}>Bem-vindo ao Nexo</Text>
-
         <Text style={styles.frase}>
           Conectando você ao profissional certo.
         </Text>
@@ -158,9 +166,9 @@ export default function Entrada() {
 
       <View style={styles.cardsWrap}>
         <MenuCard
-          title="PRECISO DE UM SERVIÇO"
+          title="PRECISO DE SERVIÇO"
           subtitle="Entrar como cliente"
-          icon={<Feather name="search" size={22} color={theme.colors.text} />}
+          icon={<Feather name="search" size={20} color={theme.colors.primary} />}
           borderVariant="primary"
           onPress={abrirCliente}
         />
@@ -168,7 +176,7 @@ export default function Entrada() {
         <MenuCard
           title="SOU PROFISSIONAL"
           subtitle="Entrar como profissional"
-          icon={<Feather name="briefcase" size={22} color={theme.colors.text} />}
+          icon={<Feather name="briefcase" size={20} color={theme.colors.success} />}
           borderVariant="success"
           onPress={abrirProfissional}
         />
@@ -197,6 +205,8 @@ function createStyles(theme: any) {
     },
     logoWrap: {
       marginBottom: 10,
+      alignItems: "center",
+      justifyContent: "center",
     },
     logo: {
       width: 200,

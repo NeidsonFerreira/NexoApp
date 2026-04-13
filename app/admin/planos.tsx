@@ -87,7 +87,7 @@ export default function AdminPlanos() {
               try {
                 await signOut(auth);
               } catch {}
-              router.replace("/");
+              router.replace("/entrada");
               return;
             }
 
@@ -206,7 +206,7 @@ export default function AdminPlanos() {
           try {
             await signOut(auth);
           } finally {
-            router.replace("/");
+            router.replace("/entrada");
           }
         },
       },

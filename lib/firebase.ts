@@ -1,5 +1,6 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
@@ -30,11 +31,22 @@ const firebaseConfig = {
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const functions = getFunctions(app, "southamerica-east1");
+const auth = (() => {
+  try {
+    const { getReactNativePersistence } = require("firebase/auth/react-native");
+
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    return getAuth(app);
+  }
+})();
+
+const db = getFirestore(app);
+const storage = getStorage(app);
+const functions = getFunctions(app, "southamerica-east1");
 
 auth.languageCode = "pt-BR";
 
-export { app };
+export { app, auth, db, storage, functions };

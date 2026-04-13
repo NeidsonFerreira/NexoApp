@@ -1,5 +1,4 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import * as admin from "firebase-admin";
 import { db, serverTimestamp } from "../config/admin";
 
 type TipoMensagem = "texto" | "imagem";

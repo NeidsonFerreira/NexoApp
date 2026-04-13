@@ -104,7 +104,7 @@ export default function ConfiguracoesProfissional() {
 
       if (!user) {
         Alert.alert("Sessão expirada", "Faça login novamente.");
-        router.replace("/");
+        router.replace("/entrada");
         return;
       }
 
@@ -320,7 +320,7 @@ export default function ConfiguracoesProfissional() {
           text: "Sair",
           onPress: async () => {
             await signOut(auth);
-            router.replace("/");
+            router.replace("/entrada");
           },
         },
       ]);

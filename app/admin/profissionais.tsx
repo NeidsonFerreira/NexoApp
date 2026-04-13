@@ -104,7 +104,7 @@ export default function AdminProfissionais() {
               try {
                 await signOut(auth);
               } catch {}
-              router.replace("/");
+              router.replace("/entrada");
             }
           },
           (error) => {
@@ -289,7 +289,7 @@ export default function AdminProfissionais() {
           try {
             await signOut(auth);
           } finally {
-            router.replace("/");
+            router.replace("/entrada");
           }
         },
       },

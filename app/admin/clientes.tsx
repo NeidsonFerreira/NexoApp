@@ -60,7 +60,7 @@ export default function AdminClientes() {
             try {
               await signOut(auth);
             } finally {
-              router.replace("/");
+              router.replace("/entrada");
             }
           },
         },
@@ -131,7 +131,7 @@ export default function AdminClientes() {
               try {
                 await signOut(auth);
               } catch {}
-              router.replace("/");
+              router.replace("/entrada");
               return;
             }
 

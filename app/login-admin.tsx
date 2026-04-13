@@ -333,7 +333,7 @@ export default function LoginAdmin() {
   }
 
   if (statusTela === "admin") {
-    return <Redirect href="/admin/dashboard" />;
+    return <Redirect href="app/admin/dashboard" />;
   }
 
   return (

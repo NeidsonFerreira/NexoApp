@@ -122,7 +122,7 @@ export default function AdminPedidos() {
           try {
             await signOut(auth);
           } finally {
-            router.replace("/");
+            router.replace("/entrada");
           }
         },
       },
@@ -252,7 +252,7 @@ export default function AdminPedidos() {
               try {
                 await signOut(auth);
               } catch {}
-              router.replace("/");
+              router.replace("/entrada");
               return;
             }
 
