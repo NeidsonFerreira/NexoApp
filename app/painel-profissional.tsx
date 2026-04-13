@@ -667,6 +667,102 @@ export default function PainelProfissional() {
           subtitle="Gerencie seu perfil, seus pedidos e seu status no app"
         />
 
+        <View style={styles.premiumHero}>
+          <View style={styles.premiumHeroTop}>
+            <View style={styles.premiumProfileWrap}>
+              <View style={styles.premiumAvatar}>
+                <Text style={styles.premiumAvatarText}>
+                  {String(profissional?.nome || "P").trim().charAt(0).toUpperCase()}
+                </Text>
+              </View>
+
+              <View style={styles.premiumProfileInfo}>
+                <Text style={styles.premiumHello}>Seu painel premium</Text>
+                <Text style={styles.premiumName}>
+                  {profissional?.nome || "Profissional"}
+                </Text>
+                <Text style={styles.premiumService}>
+                  {profissional?.servico || "Seu serviço"}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.premiumChip,
+                contaBloqueada
+                  ? styles.premiumChipDanger
+                  : contaVerificada
+                  ? profissional?.online
+                    ? styles.premiumChipSuccess
+                    : styles.premiumChipMuted
+                  : styles.premiumChipWarning,
+              ]}
+            >
+              <Text style={styles.premiumChipText}>
+                {contaBloqueada
+                  ? "Bloqueada"
+                  : contaVerificada
+                  ? profissional?.online
+                    ? "Online"
+                    : "Offline"
+                  : "Pendente"}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.premiumHeroSubtitle}>
+            {contaBloqueada
+              ? "Sua conta está temporariamente indisponível."
+              : contaVerificada
+              ? profissional?.online
+                ? "Seu perfil está visível para clientes agora."
+                : "Fique online para aparecer para clientes."
+              : "Conclua as etapas da conta para ativar seu perfil."}
+          </Text>
+
+          <View style={styles.premiumStatsRow}>
+            <View style={styles.premiumStatCard}>
+              <Text style={styles.premiumStatNumber}>{pedidosPendentes}</Text>
+              <Text style={styles.premiumStatLabel}>Pendentes</Text>
+            </View>
+
+            <View style={styles.premiumStatCard}>
+              <Text style={styles.premiumStatNumber}>{pedidosEmAndamento}</Text>
+              <Text style={styles.premiumStatLabel}>Em andamento</Text>
+            </View>
+
+            <View style={styles.premiumStatCard}>
+              <Text style={styles.premiumStatNumber}>{pedidosConcluidos}</Text>
+              <Text style={styles.premiumStatLabel}>Concluídos</Text>
+            </View>
+          </View>
+
+          <View style={styles.heroActionsRow}>
+            <TouchableOpacity
+              style={styles.heroActionPrimary}
+              onPress={abrirPedidos}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="cube-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.heroActionPrimaryText}>Meus pedidos</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.heroActionSecondary}
+              onPress={abrirPerfil}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={theme.colors.text}
+              />
+              <Text style={styles.heroActionSecondaryText}>Meu perfil</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {contaBloqueada && (
           <View style={styles.cardBloqueio}>
             <View style={styles.cardBloqueioTopo}>
@@ -1070,6 +1166,188 @@ function createStyles(theme: any, themeMode: "dark" | "light") {
       marginTop: 12,
       fontSize: 16,
       textAlign: "center",
+    },
+
+    premiumHero: {
+      backgroundColor: isDark ? "#0F1B3D" : "#F6F8FF",
+      borderRadius: 26,
+      borderWidth: 1,
+      borderColor: isDark ? "#20356F" : "#D7E1FF",
+      padding: 18,
+      marginBottom: 18,
+      shadowColor: "#000",
+      shadowOpacity: isDark ? 0.22 : 0.08,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8,
+    },
+
+    premiumHeroTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 12,
+    },
+
+    premiumProfileWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1,
+      gap: 14,
+    },
+
+    premiumAvatar: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: isDark ? "#173CFF" : theme.colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    premiumAvatarText: {
+      color: "#FFFFFF",
+      fontSize: 26,
+      fontWeight: "800",
+    },
+
+    premiumProfileInfo: {
+      flex: 1,
+    },
+
+    premiumHello: {
+      color: isDark ? "#8FA8FF" : theme.colors.primary,
+      fontSize: 13,
+      fontWeight: "700",
+      marginBottom: 4,
+    },
+
+    premiumName: {
+      color: theme.colors.text,
+      fontSize: 24,
+      fontWeight: "800",
+      marginBottom: 2,
+    },
+
+    premiumService: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+
+    premiumChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+
+    premiumChipText: {
+      color: "#FFFFFF",
+      fontSize: 12,
+      fontWeight: "800",
+    },
+
+    premiumChipSuccess: {
+      backgroundColor: "rgba(38, 191, 107, 0.22)",
+      borderColor: "rgba(38, 191, 107, 0.55)",
+    },
+
+    premiumChipMuted: {
+      backgroundColor: "rgba(255,255,255,0.08)",
+      borderColor: "rgba(255,255,255,0.12)",
+    },
+
+    premiumChipWarning: {
+      backgroundColor: "rgba(255, 184, 0, 0.18)",
+      borderColor: "rgba(255, 184, 0, 0.45)",
+    },
+
+    premiumChipDanger: {
+      backgroundColor: "rgba(255, 93, 93, 0.18)",
+      borderColor: "rgba(255, 93, 93, 0.45)",
+    },
+
+    premiumHeroSubtitle: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 21,
+      marginTop: 14,
+    },
+
+    premiumStatsRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 18,
+    },
+
+    premiumStatCard: {
+      flex: 1,
+      backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(35,78,255,0.05)",
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(35,78,255,0.08)",
+      paddingVertical: 14,
+      paddingHorizontal: 10,
+      alignItems: "center",
+    },
+
+    premiumStatNumber: {
+      color: theme.colors.text,
+      fontSize: 22,
+      fontWeight: "800",
+      marginBottom: 4,
+    },
+
+    premiumStatLabel: {
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "700",
+      textAlign: "center",
+    },
+
+    heroActionsRow: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 18,
+    },
+
+    heroActionPrimary: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: 18,
+      backgroundColor: theme.colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+      paddingHorizontal: 14,
+    },
+
+    heroActionPrimaryText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "800",
+    },
+
+    heroActionSecondary: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,255,255,0.10)" : "#D7E1FF",
+      backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "#FFFFFF",
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+      paddingHorizontal: 14,
+    },
+
+    heroActionSecondaryText: {
+      color: theme.colors.text,
+      fontSize: 15,
+      fontWeight: "800",
     },
 
     cardBloqueio: {

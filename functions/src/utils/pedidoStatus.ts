@@ -6,6 +6,7 @@ const transicoes: Partial<Record<PedidoStatus, PedidoStatus[]>> = {
   aceito: ["a_caminho", "concluido"],
   a_caminho: ["chegou", "concluido"],
   chegou: ["concluido"],
+  cliente_chegou:["concluido"],
 };
 
 export function validarTransicaoStatus(

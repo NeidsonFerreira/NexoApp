@@ -20,16 +20,43 @@ export const atualizarPortfolioProfissional = onCall(
       throw new HttpsError("permission-denied", "Usuário sem permissão.");
     }
 
-    const portfolio = validarPortfolioUrls(request.data?.portfolio) ?? [];
+    const recebeuCampoPortfolio = Object.prototype.hasOwnProperty.call(
+      request.data ?? {},
+      "portfolio"
+    );
+
+    const portfolioValidado = validarPortfolioUrls(request.data?.portfolio);
+
+    if (!recebeuCampoPortfolio) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Campo portfolio não enviado."
+      );
+    }
+
+    if (!Array.isArray(request.data?.portfolio)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Portfolio deve ser um array."
+      );
+    }
+
+    if (portfolioValidado === undefined) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Portfolio inválido."
+      );
+    }
 
     await ref.set(
       {
-        portfolio,
+        portfolio: portfolioValidado,
         portfolioAtualizadoEm: serverTimestamp(),
+        atualizadoEm: serverTimestamp(),
       },
       { merge: true }
     );
 
-    return { ok: true, total: portfolio.length };
+    return { ok: true, total: portfolioValidado.length };
   }
 );

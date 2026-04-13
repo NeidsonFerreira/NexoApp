@@ -53,11 +53,19 @@ export const avaliarProfissional = onCall<RequestData>(
     ]);
 
     if (!pedidoSnap.exists) {
-      throw new HttpsError("not-found", "Pedido não encontrado.");
+      throw new HttpsError(
+        "not-found",
+        "Pedido não encontrado.",
+        { tipo: "pedido", pedidoId }
+      );
     }
 
     if (!profissionalSnap.exists) {
-      throw new HttpsError("not-found", "Profissional não encontrado.");
+      throw new HttpsError(
+        "not-found",
+        "Profissional não encontrado.",
+        { tipo: "profissional", profissionalId }
+      );
     }
 
     const pedido = pedidoSnap.data() as Record<string, any>;
@@ -72,14 +80,19 @@ export const avaliarProfissional = onCall<RequestData>(
     if (String(pedido.profissionalId || "") !== profissionalId) {
       throw new HttpsError(
         "failed-precondition",
-        "Este pedido não pertence a esse profissional."
+        "Este pedido não pertence a esse profissional.",
+        {
+          profissionalIdPedido: String(pedido.profissionalId || ""),
+          profissionalIdEnviado: profissionalId,
+        }
       );
     }
 
     if (String(pedido.status || "").trim().toLowerCase() !== "concluido") {
       throw new HttpsError(
         "failed-precondition",
-        "Só é possível avaliar pedidos concluídos."
+        "Só é possível avaliar pedidos concluídos.",
+        { statusAtual: String(pedido.status || "") }
       );
     }
 

@@ -740,67 +740,61 @@ export default function ClienteHome() {
         )}
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Ações rápidas</Text>
-          <Text style={styles.sectionSubtitle}>Tudo que você mais usa, em um só lugar</Text>
-        </View>
-
-        <View style={styles.grid}>
-          <TouchableOpacity style={styles.actionCard} onPress={abrirServicos} activeOpacity={0.94}>
-            <Ionicons name="search-outline" size={26} color={theme.colors.primary} />
-            <Text style={styles.actionTitle}>Encontrar serviço</Text>
-            <Text style={styles.actionText}>Busque profissionais e solicite atendimento.</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} onPress={abrirMapa} activeOpacity={0.94}>
-            <Ionicons name="map-outline" size={26} color={theme.colors.primary} />
-            <Text style={styles.actionTitle}>Ver mapa</Text>
-            <Text style={styles.actionText}>Explore profissionais próximos de você.</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} onPress={abrirPedidos} activeOpacity={0.94}>
-            <Ionicons name="receipt-outline" size={26} color={theme.colors.primary} />
-            <Text style={styles.actionTitle}>Meus pedidos</Text>
-            <Text style={styles.actionText}>
-              {totalPedidosAtivos > 0
-                ? `Você tem ${totalPedidosAtivos} atendimento(s) ativo(s).`
-                : "Acompanhe seus pedidos e histórico."}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} onPress={abrirPerfil} activeOpacity={0.94}>
-            <Ionicons name="person-circle-outline" size={26} color={theme.colors.primary} />
-            <Text style={styles.actionTitle}>Meu perfil</Text>
-            <Text style={styles.actionText}>Atualize seus dados e preferências.</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Continuidade</Text>
           <Text style={styles.sectionSubtitle}>Retome o que faz mais sentido agora</Text>
         </View>
 
         <View style={styles.resumeRow}>
-          <View style={styles.resumeCard}>
-            <Ionicons name="time-outline" size={22} color={theme.colors.primary} />
-            <Text style={styles.resumeCardTitle}>Último pedido</Text>
+          <TouchableOpacity
+            style={[styles.resumeCard, styles.resumeCardCompact]}
+            onPress={pedidoAtivo ? abrirPedidos : ultimoPedido ? abrirPedidos : abrirServicos}
+            activeOpacity={0.94}
+          >
+            <Ionicons
+              name={pedidoAtivo ? "flash-outline" : "time-outline"}
+              size={22}
+              color={theme.colors.primary}
+            />
+            <Text style={styles.resumeCardTitle}>
+              {pedidoAtivo ? textoStatusAtivo(pedidoAtivo.status) : "Último pedido"}
+            </Text>
             <Text style={styles.resumeCardText}>
-              {ultimoPedido?.servico
+              {pedidoAtivo
+                ? `${pedidoAtivo.servico || "Atendimento"} em andamento`
+                : ultimoPedido?.servico
                 ? ultimoPedido.servico
-                : "Você ainda não concluiu pedidos recentes."}
+                : "Encontre um profissional para começar agora."}
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.resumeCard}>
-            <Ionicons name="shield-checkmark-outline" size={22} color={theme.colors.primary} />
-            <Text style={styles.resumeCardTitle}>Conta</Text>
-            <Text style={styles.resumeCardText}>
-              {contaBloqueada
-                ? "Conta bloqueada"
-                : emailVerificado
-                ? "Conta validada"
-                : "E-mail pendente"}
-            </Text>
-          </View>
+          {!emailVerificado ? (
+            <TouchableOpacity
+              style={[styles.resumeCard, styles.resumeCardCompact]}
+              onPress={reenviarVerificacaoEmail}
+              activeOpacity={0.94}
+              disabled={enviandoEmail}
+            >
+              <Ionicons name="mail-unread-outline" size={22} color={theme.colors.primary} />
+              <Text style={styles.resumeCardTitle}>Validar e-mail</Text>
+              <Text style={styles.resumeCardText}>
+                {enviandoEmail ? "Enviando link..." : "Confirme sua conta para manter tudo ativo."}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.resumeCard, styles.resumeCardCompact]}
+              onPress={abrirPedidos}
+              activeOpacity={0.94}
+            >
+              <Ionicons name="receipt-outline" size={22} color={theme.colors.primary} />
+              <Text style={styles.resumeCardTitle}>Meus pedidos</Text>
+              <Text style={styles.resumeCardText}>
+                {totalPedidos > 0
+                  ? `${totalPedidos} pedido(s) no histórico`
+                  : "Acompanhe seus pedidos por aqui."}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {clientePremium ? (
@@ -834,25 +828,70 @@ export default function ClienteHome() {
           </View>
         )}
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Suporte e ajustes</Text>
-          <Text style={styles.sectionSubtitle}>Tudo para cuidar da sua conta</Text>
-        </View>
+        </ScrollView>
 
-        <View style={styles.bottomGrid}>
-          <TouchableOpacity style={styles.supportCard} onPress={abrirAjuda} activeOpacity={0.94}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.primary} />
-            <Text style={styles.supportTitle}>Ajuda</Text>
-            <Text style={styles.supportText}>Tire dúvidas e fale com o suporte.</Text>
+      <View style={styles.bottomBarShadow} pointerEvents="box-none">
+        <BlurView
+          intensity={30}
+          tint={themeMode === "dark" ? "dark" : "light"}
+          style={styles.bottomBar}
+        >
+          <TouchableOpacity
+            style={styles.bottomBtn}
+            onPress={abrirPerfil}
+            activeOpacity={0.88}
+          >
+            <View style={styles.bottomIconWrap}>
+              <Ionicons name="person-outline" size={18} color={theme.colors.text} />
+            </View>
+            <Text style={styles.bottomText}>Perfil</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.supportCard} onPress={abrirConfiguracoes} activeOpacity={0.94}>
-            <Ionicons name="settings-outline" size={24} color={theme.colors.primary} />
-            <Text style={styles.supportTitle}>Configurações</Text>
-            <Text style={styles.supportText}>Ajuste preferências e recursos do app.</Text>
+          <TouchableOpacity
+            style={styles.bottomBtn}
+            onPress={abrirMapa}
+            activeOpacity={0.88}
+          >
+            <View style={styles.bottomIconWrap}>
+              <Ionicons name="map-outline" size={18} color={theme.colors.text} />
+            </View>
+            <Text style={styles.bottomText}>Mapa</Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
+
+          <TouchableOpacity
+            style={styles.bottomBtn}
+            onPress={abrirPedidos}
+            activeOpacity={0.88}
+          >
+            <View style={styles.bottomIconWrap}>
+              <Ionicons name="receipt-outline" size={18} color={theme.colors.text} />
+            </View>
+            <Text style={styles.bottomText}>Pedidos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.bottomBtn}
+            onPress={abrirAjuda}
+            activeOpacity={0.88}
+          >
+            <View style={styles.bottomIconWrap}>
+              <Ionicons name="help-circle-outline" size={18} color={theme.colors.text} />
+            </View>
+            <Text style={styles.bottomText}>Ajuda</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.bottomBtn}
+            onPress={abrirConfiguracoes}
+            activeOpacity={0.88}
+          >
+            <View style={styles.bottomIconWrap}>
+              <Ionicons name="settings-outline" size={18} color={theme.colors.text} />
+            </View>
+            <Text style={styles.bottomText}>Config</Text>
+          </TouchableOpacity>
+        </BlurView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -872,7 +911,7 @@ function createStyles(theme: any, themeMode: "dark" | "light") {
     content: {
       paddingHorizontal: 16,
       paddingTop: 8,
-      paddingBottom: 28,
+      paddingBottom: 132,
     },
     center: {
       flex: 1,
@@ -1298,6 +1337,10 @@ function createStyles(theme: any, themeMode: "dark" | "light") {
       fontSize: 14,
       lineHeight: 20,
     },
+    resumeCardCompact: {
+      flex: 1,
+      minHeight: 138,
+    },
     upgradeCard: {
       backgroundColor: theme.colors.card,
       borderColor: theme.colors.warning,
@@ -1335,6 +1378,52 @@ function createStyles(theme: any, themeMode: "dark" | "light") {
     bottomGrid: {
       gap: 12,
       marginBottom: 16,
+    },
+    bottomBarShadow: {
+      position: "absolute",
+      left: 16,
+      right: 16,
+      bottom: 14,
+      borderRadius: 24,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: isDark ? 0.35 : 0.14,
+      shadowRadius: 18,
+      elevation: 16,
+    },
+    bottomBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderRadius: 24,
+      paddingHorizontal: 8,
+      paddingVertical: 10,
+      overflow: "hidden",
+      backgroundColor: isDark ? "rgba(20,24,38,0.94)" : "rgba(255,255,255,0.92)",
+      borderWidth: 1,
+      borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(28,77,188,0.10)",
+    },
+    bottomBtn: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 6,
+      paddingHorizontal: 2,
+    },
+    bottomIconWrap: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 4,
+      backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(28,77,188,0.08)",
+    },
+    bottomText: {
+      color: theme.colors.textMuted,
+      fontSize: 10,
+      fontWeight: "800",
+      textAlign: "center",
     },
     supportCard: {
       backgroundColor: theme.colors.card,

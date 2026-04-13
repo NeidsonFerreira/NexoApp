@@ -725,6 +725,8 @@ export default function MeusPedidos() {
         <AppHeader
           title="Meus Pedidos"
           subtitle="Acompanhe suas solicitações"
+          showBackButton
+          onBack={() => router.replace("/cliente-home")}
         />
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -739,6 +741,8 @@ export default function MeusPedidos() {
       <AppHeader
         title="Meus Pedidos"
         subtitle="Acompanhe status, chat, rota e avaliação"
+        showBackButton
+        onBack={() => router.replace("/cliente-home")}
       />
 
       {!!pedidoAtivo && (

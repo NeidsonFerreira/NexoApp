@@ -7,6 +7,8 @@ export { atualizarConfigAdmin } from "./admin/atualizarConfigAdmin";
 export { banirClienteAdmin } from "./admin/banirClienteAdmin";
 
 export { sincronizarResumoAvaliacoes } from "./avaliacoes/sincronizarResumoAvaliacoes";
+export { avaliarProfissional } from "./avaliacoes/avaliarProfissional";
+
 
 export { finalizarCadastroSocial } from "./auth/finalizarCadastroSocial";
 export { verificarRateLimitLogin } from "./auth/verificarRateLimitLogin";

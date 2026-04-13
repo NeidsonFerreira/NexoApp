@@ -91,29 +91,43 @@ export default function AdminVerificacoes() {
                 ...(docSnap.data() as any),
               }))
               .filter((item) => item.tipo === "profissional")
-              .map(
-                (item) =>
-                  ({
-                    id: item.id,
-                    nome: item.nome || "",
-                    servico: item.servico || "",
-                    cidade: item.cidade || "",
-                    telefone: item.telefone || "",
-                    plano: item.plano || "gratuito",
-                    verificacaoStatus:
-                      (item.verificacaoStatus as VerificacaoStatus) ||
-                      "nao_enviado",
-                    documentosEnviados: item.documentosEnviados === true,
-                    motivoRejeicao: item.motivoRejeicao || "",
-                    tipoDocumento: item.tipoDocumento || "",
-                    numeroDocumento: item.numeroDocumento || "",
-                    documentoFrente: item.documentoFrente || "",
-                    documentoVerso: item.documentoVerso || "",
-                    selfieDocumento: item.selfieDocumento || "",
-                    atualizadoEm: item.atualizadoEm || null,
-                    verificacaoEnviadaEm: item.verificacaoEnviadaEm || null,
-                  }) satisfies ProfissionalVerificacao
-              );
+              .map((item) => {
+                const docs = item.documentosVerificacao || {};
+
+                return {
+                  id: item.id,
+                  nome: item.nome || "",
+                  servico: item.servico || item.categoria || "",
+                  cidade: item.cidade || "",
+                  telefone: item.telefone || "",
+                  plano: item.plano || "gratuito",
+                  verificacaoStatus:
+                    (item.verificacaoStatus as VerificacaoStatus) ||
+                    "nao_enviado",
+                  documentosEnviados: item.documentosEnviados === true,
+                  motivoRejeicao: item.motivoRejeicao || "",
+                  tipoDocumento: item.tipoDocumento || "",
+                  numeroDocumento: item.numeroDocumento || "",
+                  documentoFrente:
+                    docs.documentoFrenteUrl ||
+                    item.documentoFrenteUrl ||
+                    item.documentoFrente ||
+                    "",
+                  documentoVerso:
+                    docs.documentoVersoUrl ||
+                    item.documentoVersoUrl ||
+                    item.documentoVerso ||
+                    "",
+                  selfieDocumento:
+                    docs.selfieUrl ||
+                    item.selfieUrl ||
+                    item.selfieDocumento ||
+                    "",
+                  atualizadoEm: item.atualizadoEm || null,
+                  verificacaoEnviadaEm:
+                    docs.enviadoEm || item.verificacaoEnviadaEm || null,
+                } satisfies ProfissionalVerificacao;
+              });
 
             dados.sort((a, b) => {
               const prioridade = (status?: VerificacaoStatus) => {
@@ -138,14 +152,18 @@ export default function AdminVerificacoes() {
               return nomeA.localeCompare(nomeB);
             });
 
-            setLista(dados);
-            setCarregandoLista(false);
-            setRefreshing(false);
+            if (ativo) {
+              setLista(dados);
+              setCarregandoLista(false);
+              setRefreshing(false);
+            }
           },
           (error) => {
             console.log("Erro ao carregar verificações:", error);
-            setCarregandoLista(false);
-            setRefreshing(false);
+            if (ativo) {
+              setCarregandoLista(false);
+              setRefreshing(false);
+            }
           }
         );
       } catch (error) {

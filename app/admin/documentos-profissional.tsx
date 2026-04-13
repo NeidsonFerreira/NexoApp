@@ -1,6 +1,7 @@
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,9 +15,15 @@ import {
 import { AppHeader } from "../../components/AppHeader";
 import { ActionButton } from "../../components/ActionButton";
 import { useAppTheme } from "../../contexts/ThemeContext";
-import { auth, db } from "../../lib/firebase";
+import { auth, db, functions } from "../../lib/firebase";
 
 type StatusTela = "carregando" | "admin" | "sem-acesso" | "sem-user";
+
+type VerificacaoStatus =
+  | "nao_enviado"
+  | "pendente"
+  | "aprovado"
+  | "rejeitado";
 
 type ProfissionalDocumento = {
   id: string;
@@ -28,7 +35,7 @@ type ProfissionalDocumento = {
   documentoFrente?: string;
   documentoVerso?: string;
   selfieDocumento?: string;
-  verificacaoStatus?: string;
+  verificacaoStatus?: VerificacaoStatus | string;
   motivoRejeicao?: string;
 };
 
@@ -91,18 +98,32 @@ export default function AdminDocumentosProfissional() {
         }
 
         const dadosProf = snapProf.data() as any;
+        const docs = dadosProf.documentosVerificacao || {};
 
         const profissionalCarregado: ProfissionalDocumento = {
           id: snapProf.id,
           nome: dadosProf.nome || "",
-          servico: dadosProf.servico || "",
+          servico: dadosProf.servico || dadosProf.categoria || "",
           cidade: dadosProf.cidade || "",
           tipoDocumento: dadosProf.tipoDocumento || "",
           numeroDocumento: dadosProf.numeroDocumento || "",
-          documentoFrente: dadosProf.documentoFrente || "",
-          documentoVerso: dadosProf.documentoVerso || "",
-          selfieDocumento: dadosProf.selfieDocumento || "",
-          verificacaoStatus: dadosProf.verificacaoStatus || "nao_enviado",
+          documentoFrente:
+            docs.documentoFrenteUrl ||
+            dadosProf.documentoFrenteUrl ||
+            dadosProf.documentoFrente ||
+            "",
+          documentoVerso:
+            docs.documentoVersoUrl ||
+            dadosProf.documentoVersoUrl ||
+            dadosProf.documentoVerso ||
+            "",
+          selfieDocumento:
+            docs.selfieUrl ||
+            dadosProf.selfieUrl ||
+            dadosProf.selfieDocumento ||
+            "",
+          verificacaoStatus:
+            (dadosProf.verificacaoStatus as VerificacaoStatus) || "nao_enviado",
           motivoRejeicao: dadosProf.motivoRejeicao || "",
         };
 
@@ -127,18 +148,87 @@ export default function AdminDocumentosProfissional() {
     };
   }, [params.id]);
 
+  const statusInfo = useMemo(() => {
+    switch (profissional?.verificacaoStatus) {
+      case "pendente":
+        return {
+          label: "EM ANÁLISE",
+          backgroundColor: theme.colors.warning,
+        };
+      case "aprovado":
+        return {
+          label: "APROVADO",
+          backgroundColor: theme.colors.success,
+        };
+      case "rejeitado":
+        return {
+          label: "REJEITADO",
+          backgroundColor: theme.colors.danger,
+        };
+      case "nao_enviado":
+      default:
+        return {
+          label: "NÃO ENVIADO",
+          backgroundColor: theme.colors.textMuted,
+        };
+    }
+  }, [profissional?.verificacaoStatus, theme.colors.warning, theme.colors.success, theme.colors.danger, theme.colors.textMuted]);
+
+  async function recarregarProfissional() {
+    if (!params.id || typeof params.id !== "string") return;
+
+    const snapProf = await getDoc(doc(db, "users", params.id));
+    if (!snapProf.exists()) return;
+
+    const dadosProf = snapProf.data() as any;
+    const docs = dadosProf.documentosVerificacao || {};
+
+    setProfissional({
+      id: snapProf.id,
+      nome: dadosProf.nome || "",
+      servico: dadosProf.servico || dadosProf.categoria || "",
+      cidade: dadosProf.cidade || "",
+      tipoDocumento: dadosProf.tipoDocumento || "",
+      numeroDocumento: dadosProf.numeroDocumento || "",
+      documentoFrente:
+        docs.documentoFrenteUrl ||
+        dadosProf.documentoFrenteUrl ||
+        dadosProf.documentoFrente ||
+        "",
+      documentoVerso:
+        docs.documentoVersoUrl ||
+        dadosProf.documentoVersoUrl ||
+        dadosProf.documentoVerso ||
+        "",
+      selfieDocumento:
+        docs.selfieUrl ||
+        dadosProf.selfieUrl ||
+        dadosProf.selfieDocumento ||
+        "",
+      verificacaoStatus:
+        (dadosProf.verificacaoStatus as VerificacaoStatus) || "nao_enviado",
+      motivoRejeicao: dadosProf.motivoRejeicao || "",
+    });
+
+    setMotivoRejeicao(dadosProf.motivoRejeicao || "");
+  }
+
   async function aprovarProfissional() {
     try {
       if (!profissional) return;
 
       setProcessando(true);
 
-      await updateDoc(doc(db, "users", profissional.id), {
-        verificacaoStatus: "aprovado",
-        documentosEnviados: true,
-        online: false,
-        motivoRejeicao: "",
+      const aprovarVerificacaoProfissional = httpsCallable(
+        functions,
+        "aprovarVerificacaoProfissional"
+      );
+
+      await aprovarVerificacaoProfissional({
+        userId: profissional.id,
       });
+
+      await recarregarProfissional();
 
       Alert.alert("Sucesso", "Profissional aprovado com sucesso.", [
         {
@@ -170,12 +260,17 @@ export default function AdminDocumentosProfissional() {
 
       setProcessando(true);
 
-      await updateDoc(doc(db, "users", profissional.id), {
-        verificacaoStatus: "rejeitado",
-        documentosEnviados: true,
-        online: false,
-        motivoRejeicao: motivoFinal,
+      const rejeitarVerificacaoProfissional = httpsCallable(
+        functions,
+        "rejeitarVerificacaoProfissional"
+      );
+
+      await rejeitarVerificacaoProfissional({
+        userId: profissional.id,
+        motivo: motivoFinal,
       });
+
+      await recarregarProfissional();
 
       Alert.alert("Sucesso", "Profissional rejeitado.", [
         {
@@ -264,7 +359,14 @@ export default function AdminDocumentosProfissional() {
 
         <View style={styles.cardInfo}>
           <View style={styles.statusWrap}>
-            <Text style={styles.statusBadge}>EM ANÁLISE</Text>
+            <Text
+              style={[
+                styles.statusBadge,
+                { backgroundColor: statusInfo.backgroundColor },
+              ]}
+            >
+              {statusInfo.label}
+            </Text>
           </View>
 
           <Text style={styles.nome}>{profissional.nome || "Profissional"}</Text>
@@ -388,7 +490,6 @@ function createStyles(theme: any, themeMode: "dark" | "light") {
 
     statusBadge: {
       color: "#fff",
-      backgroundColor: theme.colors.warning,
       fontSize: 11,
       fontWeight: "800",
       paddingHorizontal: 10,

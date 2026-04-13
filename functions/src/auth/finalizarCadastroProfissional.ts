@@ -12,6 +12,8 @@ type RequestData = {
   cidade?: string;
   latitude?: number | null;
   longitude?: number | null;
+  fotoPerfil?: string;
+  portfolio?: string[];
 };
 
 function limpar(valor: unknown, max = 500) {
@@ -25,6 +27,15 @@ function validarListaServicos(valor: unknown) {
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, 20);
+}
+
+function validarListaUrls(valor: unknown, maxItems = 3) {
+  if (!Array.isArray(valor)) return [];
+  return valor
+    .filter((item) => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, maxItems);
 }
 
 function validarLatLng(lat?: number | null, lng?: number | null) {
@@ -88,15 +99,15 @@ export const finalizarCadastroProfissional = onCall<RequestData>(
         ? request.data.longitude
         : null;
 
+    const fotoPerfil = limpar(request.data?.fotoPerfil, 2000);
+    const portfolio = validarListaUrls(request.data?.portfolio, 3);
+
     if (!nome || nome.length < 3) {
       throw new HttpsError("invalid-argument", "Nome inválido.");
     }
 
     if (!descricao || descricao.length < 10) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Descrição muito curta."
-      );
+      throw new HttpsError("invalid-argument", "Descrição muito curta.");
     }
 
     if (servicos.length === 0) {
@@ -135,21 +146,28 @@ export const finalizarCadastroProfissional = onCall<RequestData>(
       );
     }
 
-    await userRef.set(
-      {
-        nome,
-        descricao,
-        servicos,
-        tipoAtendimento,
-        endereco,
-        cidade,
-        latitude,
-        longitude,
-        perfilCompleto: true,
-        atualizadoEm: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const payload: Record<string, any> = {
+      nome,
+      descricao,
+      servicos,
+      tipoAtendimento,
+      endereco,
+      cidade,
+      latitude,
+      longitude,
+      perfilCompleto: true,
+      atualizadoEm: serverTimestamp(),
+    };
+
+    if (fotoPerfil) {
+      payload.fotoPerfil = fotoPerfil;
+    }
+
+    if (portfolio.length > 0) {
+      payload.portfolio = portfolio;
+    }
+
+    await userRef.set(payload, { merge: true });
 
     return {
       ok: true,

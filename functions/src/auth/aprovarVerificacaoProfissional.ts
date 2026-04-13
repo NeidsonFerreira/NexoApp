@@ -5,38 +5,61 @@ export const aprovarVerificacaoProfissional = onCall(
   { region: "southamerica-east1" },
   async (request) => {
     const adminId = request.auth?.uid;
-    if (!adminId) throw new HttpsError("unauthenticated","Admin não autenticado.");
+    if (!adminId) {
+      throw new HttpsError("unauthenticated", "Admin não autenticado.");
+    }
 
     const { userId } = request.data || {};
-    if (!userId) throw new HttpsError("invalid-argument","userId obrigatório.");
+    if (!userId || typeof userId !== "string") {
+      throw new HttpsError("invalid-argument", "userId obrigatório.");
+    }
 
     const adminSnap = await db.collection("users").doc(adminId).get();
     if (!adminSnap.exists || adminSnap.data()?.tipo !== "admin") {
-      throw new HttpsError("permission-denied","Apenas admin pode aprovar.");
+      throw new HttpsError("permission-denied", "Apenas admin pode aprovar.");
     }
 
     const userRef = db.collection("users").doc(userId);
     const snap = await userRef.get();
 
     if (!snap.exists) {
-      throw new HttpsError("not-found","Usuário não encontrado.");
+      throw new HttpsError("not-found", "Usuário não encontrado.");
     }
 
-    await userRef.set({
-      verificacaoStatus: "aprovado",
-      onboardingStatus: "aprovado",
-      podeAparecerNoApp: true,
-      aprovadoPor: adminId,
-      aprovadoEm: serverTimestamp(),
-    }, { merge: true });
+    const atual = snap.data() as Record<string, any>;
+
+    await userRef.set(
+      {
+        verificacaoStatus: "aprovado",
+        onboardingStatus: "aprovado",
+        podeAparecerNoApp: true,
+
+        // compatibilidade / consistência
+        verificado: true,
+        documentosAprovados: true,
+        documentosEnviados: true,
+
+        aprovadoPor: adminId,
+        aprovadoEm: serverTimestamp(),
+        atualizadoEm: serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     await db.collection("logsVerificacaoAdmin").add({
       acao: "aprovar",
       userId,
       adminId,
-      criadoEm: serverTimestamp()
+      statusAnterior: atual?.verificacaoStatus || null,
+      criadoEm: serverTimestamp(),
     });
 
-    return { ok: true };
+    return {
+      ok: true,
+      verificacaoStatus: "aprovado",
+      onboardingStatus: "aprovado",
+      podeAparecerNoApp: true,
+      verificado: true,
+    };
   }
 );

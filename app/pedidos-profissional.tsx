@@ -312,13 +312,10 @@ export default function PedidosProfissional() {
           (snapshot) => {
             if (!ativo) return;
 
-            const pedidoAtualAtivoId = pedidoAtivoInicial || "";
-            const lista: Pedido[] = snapshot.docs
-              .map((docSnap) => ({
-                id: docSnap.id,
-                ...(docSnap.data() as any),
-              }))
-              .filter((pedido) => pedido.id !== pedidoAtualAtivoId);
+            const lista: Pedido[] = snapshot.docs.map((docSnap) => ({
+              id: docSnap.id,
+              ...(docSnap.data() as any),
+            }));
 
             setHistoricoRaw(lista);
             setErroTela("");
@@ -479,9 +476,16 @@ export default function PedidosProfissional() {
         return;
       }
 
+      const pedidoAtivoEncontrado =
+        pedidoAtivo ||
+        historicoRaw.find((pedido) => pedidoEhAtivo(pedido.status)) ||
+        null;
+
       const fonte = [
-        ...(pedidoAtivo ? [pedidoAtivo] : []),
-        ...historicoRaw.filter((pedido) => pedido.id !== pedidoAtivo?.id),
+        ...(pedidoAtivoEncontrado ? [pedidoAtivoEncontrado] : []),
+        ...historicoRaw.filter(
+          (pedido) => pedido.id !== pedidoAtivoEncontrado?.id
+        ),
       ];
 
       const lista: PedidoUI[] = await Promise.all(

@@ -77,36 +77,55 @@ export const enviarDocumentosVerificacao = onCall<RequestData>(
       throw new HttpsError("invalid-argument", "Documento verso inválido.");
     }
 
-    await userRef.set(
-      {
-        documentosVerificacao: {
-          documentoFrenteUrl,
-          documentoVersoUrl: documentoVersoUrl || "",
-          selfieUrl,
-          observacao,
-          enviadoEm: serverTimestamp(),
-        },
-        documentosEnviados: true,
-        verificacaoStatus: "pendente",
-        onboardingStatus: "em_analise",
-        podeAparecerNoApp: false,
-        atualizadoEm: serverTimestamp(),
+    const atualDocs = atual.documentosVerificacao || {};
+
+    const documentosMudaram =
+      atualDocs.documentoFrenteUrl !== documentoFrenteUrl ||
+      (atualDocs.documentoVersoUrl || "") !== (documentoVersoUrl || "") ||
+      atualDocs.selfieUrl !== selfieUrl;
+
+    const payload: Record<string, any> = {
+      documentosVerificacao: {
+        documentoFrenteUrl,
+        documentoVersoUrl: documentoVersoUrl || "",
+        selfieUrl,
+        observacao,
+        enviadoEm: serverTimestamp(),
       },
-      { merge: true }
-    );
+      documentosEnviados: true,
+      atualizadoEm: serverTimestamp(),
+
+      // compatibilidade com telas antigas/admin antigo
+      documentoFrenteUrl,
+      documentoVersoUrl: documentoVersoUrl || "",
+      selfieUrl,
+    };
+
+    if (documentosMudaram) {
+      payload.verificacaoStatus = "pendente";
+      payload.onboardingStatus = "em_analise";
+      payload.podeAparecerNoApp = false;
+    }
+
+    await userRef.set(payload, { merge: true });
 
     await logRef.set({
       userId: uid,
       etapa: "enviarDocumentosVerificacao",
       sucesso: true,
       possuiVerso: !!documentoVersoUrl,
+      documentosMudaram,
       criadoEm: serverTimestamp(),
     });
 
     return {
       ok: true,
-      verificacaoStatus: "pendente",
-      onboardingStatus: "em_analise",
+      verificacaoStatus: documentosMudaram
+        ? "pendente"
+        : atual.verificacaoStatus || "pendente",
+      onboardingStatus: documentosMudaram
+        ? "em_analise"
+        : atual.onboardingStatus || null,
     };
   }
 );
