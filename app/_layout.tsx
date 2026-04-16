@@ -190,22 +190,21 @@ function RootNavigator() {
         <Stack.Screen name="entrada" />
         <Stack.Screen name="login-cliente" />
         <Stack.Screen name="login-profissional" />
-        <Stack.Screen name="cadastro-cliente" />
+        <Stack.Screen name="cadastro" />
         <Stack.Screen name="cadastro-profissional" />
         <Stack.Screen name="profissionais" />
-        <Stack.Screen name="profissional-detalhe" />
+        <Stack.Screen name="perfil-profissional" />
         <Stack.Screen name="pedidos" />
         <Stack.Screen name="pedidos-profissional" />
         <Stack.Screen name="mapa" />
         <Stack.Screen name="chat" />
         <Stack.Screen name="chat-suporte" />
-        <Stack.Screen name="suporte" />
         <Stack.Screen name="manutencao" />
         <Stack.Screen name="configuracoes" />
-        <Stack.Screen name="meu-plano" />
-        <Stack.Screen name="meu-perfil" />
+        <Stack.Screen name="plano-cliente" />
+        <Stack.Screen name="perfil-cliente" />
         <Stack.Screen name="ajuda" />
-        <Stack.Screen name="(admin)" />
+        <Stack.Screen name="admin" />
       </Stack>
     </ThemeProvider>
   );

@@ -39,6 +39,7 @@ import { auth, db, functions } from "../lib/firebase";
 import { safeRequest } from "../lib/firebaseService";
 import { logError, logEvent } from "../lib/logger";
 import { isOnline } from "../lib/network";
+import { registrarPushNotificationsAsync } from "../lib/notifications";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -323,6 +324,8 @@ export default function LoginCliente() {
       await finalizarCadastroSocialCliente(nomeBase);
       await recarregarUserData();
 
+      await registrarPushNotificationsAsync();
+
       const validacao = await validarContaCliente(currentUser.uid);
 
       if (validacao.ok && currentUser.email) {
@@ -364,6 +367,7 @@ export default function LoginCliente() {
 
     if (tipo === "cliente") {
       setStatusTela("cliente");
+      
       return;
     }
 
@@ -436,6 +440,7 @@ export default function LoginCliente() {
 
         logEvent("login_cliente_google_ok", undefined, "LoginCliente");
         setStatusTela("cliente");
+        await registrarPushNotificationsAsync();
       } catch (error: any) {
         logError(error, "LoginCliente.loginGoogle.finalizar");
         handleError(error, "LoginCliente.loginGoogle.finalizar");
@@ -496,6 +501,7 @@ export default function LoginCliente() {
 
       logEvent("login_cliente_email_ok", { email: emailNormalizado }, "LoginCliente");
       setStatusTela("cliente");
+      await registrarPushNotificationsAsync();
     } catch (error: any) {
       try {
         const falha = await registrarFalha(
@@ -583,6 +589,7 @@ export default function LoginCliente() {
 
       logEvent("login_cliente_apple_ok", undefined, "LoginCliente");
       setStatusTela("cliente");
+      await registrarPushNotificationsAsync();
     } catch (error: any) {
       if (error?.code === "ERR_REQUEST_CANCELED") return;
 

@@ -1,11 +1,15 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { REGION } from "../config/constants";
 import { db, serverTimestamp } from "../config/admin";
 import { requireAuthUid } from "../utils/validators";
 import {
   optionalTrimmedString,
-  validarCategorias,
+  validarServicos, // vamos usar pra validar SERVIÇOS
 } from "../utils/profileValidators";
+import { GeoPoint } from "firebase-admin/firestore";
+
+const GOOGLE_MAPS_KEY = defineSecret("GOOGLE_MAPS_KEY");
 
 type Coordenadas = {
   latitude: number;
@@ -17,7 +21,6 @@ function coordenadaValida(lat?: number | null, lng?: number | null) {
     typeof lat === "number" &&
     typeof lng === "number" &&
     Number.isFinite(lat) &&
-    Number.isFinite(lng) &&
     lat >= -90 &&
     lat <= 90 &&
     lng >= -180 &&
@@ -25,52 +28,26 @@ function coordenadaValida(lat?: number | null, lng?: number | null) {
   );
 }
 
-async function buscarCoordenadasEndereco(enderecoCompleto: string): Promise<Coordenadas | null> {
-  const apiKey = process.env.GOOGLE_MAPS_GEOCODING_API_KEY || "";
-
-  if (!apiKey) {
-    throw new HttpsError(
-      "failed-precondition",
-      "GOOGLE_MAPS_GEOCODING_API_KEY não configurada."
-    );
-  }
-
+async function buscarCoordenadasEndereco(
+  enderecoCompleto: string,
+  apiKey: string
+): Promise<Coordenadas | null> {
   const url =
     `https://maps.googleapis.com/maps/api/geocode/json?address=` +
     `${encodeURIComponent(enderecoCompleto)}` +
     `&language=pt-BR&region=br&key=${apiKey}`;
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-
-  const rawText = await response.text();
-
-  let data: any = null;
-  try {
-    data = rawText ? JSON.parse(rawText) : null;
-  } catch {
-    throw new HttpsError(
-      "internal",
-      `Resposta inválida do Geocoding: ${rawText.slice(0, 180)}`
-    );
-  }
+  const response = await fetch(url);
+  const data = await response.json();
 
   if (!response.ok) {
     throw new HttpsError(
       "internal",
-      data?.error_message || data?.status || "Falha ao consultar geocoding."
+      data?.error_message || "Erro no geocoding."
     );
   }
 
-  if (
-    data?.status !== "OK" ||
-    !Array.isArray(data.results) ||
-    data.results.length === 0
-  ) {
+  if (data.status !== "OK" || !data.results?.length) {
     return null;
   }
 
@@ -87,9 +64,13 @@ async function buscarCoordenadasEndereco(enderecoCompleto: string): Promise<Coor
 }
 
 export const atualizarPerfilProfissionalSeguro = onCall(
-  { region: REGION },
+  {
+    region: REGION,
+    secrets: [GOOGLE_MAPS_KEY],
+  },
   async (request) => {
     const uid = requireAuthUid(request.auth?.uid);
+
     const ref = db.collection("users").doc(uid);
     const snap = await ref.get();
 
@@ -107,16 +88,19 @@ export const atualizarPerfilProfissionalSeguro = onCall(
       atualizadoEm: serverTimestamp(),
     };
 
+    // 🔹 CAMPOS
     const nome = optionalTrimmedString(request.data?.nome, 120, "nome");
     const bio = optionalTrimmedString(request.data?.bio, 600, "bio");
     const telefone = optionalTrimmedString(request.data?.telefone, 40, "telefone");
     const cidade = optionalTrimmedString(request.data?.cidade, 120, "cidade");
     const endereco = optionalTrimmedString(request.data?.endereco, 200, "endereco");
-    const categorias = validarCategorias(request.data?.categorias);
+
+    // 🔥 AQUI AGORA É SERVIÇOS (CORRIGIDO)
+    const servicos = validarServicos(request.data?.servicos);
 
     const tipoAtendimentoRaw =
       typeof request.data?.tipoAtendimento === "string"
-        ? String(request.data.tipoAtendimento).trim().toLowerCase()
+        ? request.data.tipoAtendimento.toLowerCase().trim()
         : undefined;
 
     const tipoAtendimento =
@@ -124,21 +108,36 @@ export const atualizarPerfilProfissionalSeguro = onCall(
         ? tipoAtendimentoRaw
         : undefined;
 
+    // 🔹 SET PAYLOAD
     if (nome !== undefined) payload.nome = nome;
     if (bio !== undefined) payload.bio = bio;
     if (telefone !== undefined) payload.telefone = telefone;
     if (cidade !== undefined) payload.cidade = cidade;
     if (endereco !== undefined) payload.endereco = endereco;
-    if (categorias !== undefined) payload.categorias = categorias;
-    if (tipoAtendimento !== undefined) payload.tipoAtendimento = tipoAtendimento;
 
-    const tipoFinal = tipoAtendimento ?? String(user.tipoAtendimento || "").toLowerCase();
+    if (servicos && servicos.length > 0) {
+      payload.servicos = servicos;
+    }
+
+    if (tipoAtendimento !== undefined) {
+      payload.tipoAtendimento = tipoAtendimento;
+    }
+
+    // 🔹 VALORES FINAIS
+    const tipoFinal =
+      tipoAtendimento ?? String(user.tipoAtendimento || "").toLowerCase();
+
     const cidadeFinal =
       cidade !== undefined ? cidade : String(user.cidade || "").trim();
+
     const enderecoFinal =
       endereco !== undefined ? endereco : String(user.endereco || "").trim();
 
-    if (tipoFinal === "fixo") {
+    const enderecoMudou =
+      endereco !== undefined || cidade !== undefined;
+
+    // 🔥 GEOCODING INTELIGENTE
+    if (tipoFinal === "fixo" && enderecoMudou) {
       if (!enderecoFinal || !cidadeFinal) {
         throw new HttpsError(
           "invalid-argument",
@@ -146,8 +145,11 @@ export const atualizarPerfilProfissionalSeguro = onCall(
         );
       }
 
+      const apiKey = GOOGLE_MAPS_KEY.value();
+
       const coords = await buscarCoordenadasEndereco(
-        `${enderecoFinal}, ${cidadeFinal}`
+        `${enderecoFinal}, ${cidadeFinal}`,
+        apiKey
       );
 
       if (!coords) {
@@ -159,12 +161,20 @@ export const atualizarPerfilProfissionalSeguro = onCall(
 
       payload.latitude = coords.latitude;
       payload.longitude = coords.longitude;
+
+      // 🔥 PARA MAPA
+      payload.localizacao = new GeoPoint(
+        coords.latitude,
+        coords.longitude
+      );
     }
 
+    // 🔹 SE FOR MÓVEL LIMPA
     if (tipoFinal === "movel") {
       payload.endereco = "";
       payload.latitude = null;
       payload.longitude = null;
+      payload.localizacao = null;
     }
 
     await ref.set(payload, { merge: true });

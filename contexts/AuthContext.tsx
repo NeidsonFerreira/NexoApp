@@ -15,6 +15,7 @@ import { auth, db } from "../lib/firebase";
 import { handleError } from "../lib/errorHandler";
 import { safeRequest } from "../lib/firebaseService";
 import { logError, logEvent } from "../lib/logger";
+import { registrarPushNotificationsAsync } from "../lib/notifications";
 
 type UserTipo = "cliente" | "profissional" | "admin" | string;
 
@@ -46,11 +47,7 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-type AuthProviderProps = {
-  children: ReactNode;
-};
-
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,6 +56,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const mountedRef = useRef(true);
   const authChangeSeqRef = useRef(0);
   const lastUserIdRef = useRef<string | null>(null);
+  const lastPushTokenRef = useRef<string | null>(null);
 
   const limparAuthState = useCallback(() => {
     if (!mountedRef.current) return;
@@ -66,7 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUserData(null);
   }, []);
 
-  const carregarUserData = useCallback(async (userId: string): Promise<void> => {
+  const carregarUserData = useCallback(async (userId: string) => {
     try {
       const snap = await safeRequest(
         () => getDoc(doc(db, "users", userId)),
@@ -98,7 +96,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  const recarregarUserData = useCallback(async (): Promise<void> => {
+  const recarregarUserData = useCallback(async () => {
     const currentUser = auth.currentUser;
 
     if (!currentUser) {
@@ -138,6 +136,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (!mountedRef.current) return;
         if (authChangeSeqRef.current !== seq) return;
         if (lastUserIdRef.current !== usuario.uid) return;
+
+        /**
+         * 🔥 PUSH NOTIFICATION GLOBAL (AQUI ESTÁ O CORAÇÃO)
+         */
+        try {
+          const token = await registrarPushNotificationsAsync();
+
+          if (token && token !== lastPushTokenRef.current) {
+            lastPushTokenRef.current = token;
+          }
+        } catch (pushError) {
+          logError(pushError, "AuthContext.pushToken");
+        }
 
         logEvent(
           "auth_signed_in",

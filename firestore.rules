@@ -1,0 +1,237 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function currentUserExists() {
+      return signedIn() && exists(currentUserPath());
+    }
+
+    function currentUserDoc() {
+      return get(currentUserPath());
+    }
+
+    function isAdmin() {
+      return currentUserExists() &&
+        currentUserDoc().data.tipo == "admin";
+    }
+
+    function isCliente() {
+      return currentUserExists() &&
+        currentUserDoc().data.tipo == "cliente";
+    }
+
+    function isProfissional() {
+      return currentUserExists() &&
+        currentUserDoc().data.tipo == "profissional";
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function userIsNotBlocked() {
+      return !currentUserExists() ||
+        !(currentUserDoc().data.bloqueado == true);
+    }
+
+    function unchanged(field) {
+      return !(field in resource.data) ||
+        !(field in request.resource.data) ||
+        request.resource.data[field] == resource.data[field];
+    }
+
+    function validLatLng(latField, lngField) {
+      return (
+        !(latField in request.resource.data) ||
+        request.resource.data[latField] == null ||
+        (
+          request.resource.data[latField] is number &&
+          request.resource.data[latField] >= -90 &&
+          request.resource.data[latField] <= 90
+        )
+      ) &&
+      (
+        !(lngField in request.resource.data) ||
+        request.resource.data[lngField] == null ||
+        (
+          request.resource.data[lngField] is number &&
+          request.resource.data[lngField] >= -180 &&
+          request.resource.data[lngField] <= 180
+        )
+      );
+    }
+
+    function validPedidoStatus(status) {
+      return status in [
+        "pendente","aceito","a_caminho","chegou",
+        "cliente_a_caminho","cliente_chegou",
+        "concluido","recusado","cancelado","corrigido_admin"
+      ];
+    }
+
+    function profissionalAprovadoEDisponivel(profissionalId) {
+      return exists(/databases/$(database)/documents/users/$(profissionalId)) &&
+        get(/databases/$(database)/documents/users/$(profissionalId)).data.tipo == "profissional" &&
+        get(/databases/$(database)/documents/users/$(profissionalId)).data.verificacaoStatus == "aprovado" &&
+        get(/databases/$(database)/documents/users/$(profissionalId)).data.bloqueado != true;
+    }
+
+    function clienteSemPedidoAtivo() {
+      return !("pedidoAtivoId" in currentUserDoc().data) ||
+        currentUserDoc().data.pedidoAtivoId == null;
+    }
+
+    function pedidoReadableByParticipant() {
+      return signedIn() &&
+        (
+          resource.data.clienteId == request.auth.uid ||
+          resource.data.profissionalId == request.auth.uid
+        );
+    }
+
+    function pedidoCreateValido() {
+      return signedIn() &&
+        isCliente() &&
+        userIsNotBlocked() &&
+        clienteSemPedidoAtivo() &&
+        request.resource.data.clienteId == request.auth.uid &&
+        profissionalAprovadoEDisponivel(request.resource.data.profissionalId) &&
+        request.resource.data.status == "pendente" &&
+        validLatLng("latitudeCliente", "longitudeCliente");
+    }
+
+    function pedidoExisteEParticipante(pedidoId) {
+      return exists(/databases/$(database)/documents/pedidos/$(pedidoId)) &&
+        (
+          get(/databases/$(database)/documents/pedidos/$(pedidoId)).data.clienteId == request.auth.uid ||
+          get(/databases/$(database)/documents/pedidos/$(pedidoId)).data.profissionalId == request.auth.uid
+        );
+    }
+
+    function chatParticipant(chatId) {
+      return exists(/databases/$(database)/documents/chats/$(chatId)) &&
+        (
+          get(/databases/$(database)/documents/chats/$(chatId)).data.clienteId == request.auth.uid ||
+          get(/databases/$(database)/documents/chats/$(chatId)).data.profissionalId == request.auth.uid
+        );
+    }
+
+    // ================= USERS =================
+    match /users/{userId} {
+      allow read: if signedIn() && (
+        isOwner(userId) ||
+        isAdmin() ||
+        (
+          resource != null &&
+          resource.data.tipo == "profissional" &&
+          resource.data.verificacaoStatus == "aprovado" &&
+          resource.data.bloqueado != true
+        )
+      );
+
+      allow create: if signedIn() && isOwner(userId);
+
+      allow update: if isAdmin() || isOwner(userId);
+
+      allow delete: if isAdmin();
+    }
+
+    // ================= PEDIDOS =================
+    match /pedidos/{pedidoId} {
+      allow read: if isAdmin() || pedidoReadableByParticipant();
+      allow create: if pedidoCreateValido();
+
+      allow update: if isAdmin() || (
+        signedIn() && pedidoReadableByParticipant()
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // ================= CHATS =================
+    match /chats/{chatId} {
+      allow read: if isAdmin() || chatParticipant(chatId);
+
+      allow create: if signedIn() &&
+        request.resource.data.clienteId == request.auth.uid &&
+        pedidoExisteEParticipante(request.resource.data.pedidoId);
+
+      allow update: if isAdmin() || chatParticipant(chatId);
+
+      allow delete: if isAdmin();
+
+      match /mensagens/{mensagemId} {
+        allow read: if isAdmin() || chatParticipant(chatId);
+
+        // 🔥 CORRIGIDO (agora chat funciona)
+        allow create: if chatParticipant(chatId) &&
+          request.resource.data.autorId == request.auth.uid;
+
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ================= AVALIAÇÕES =================
+    match /avaliacoes/{avaliacaoId} {
+      allow read: if true;
+
+      allow create: if signedIn() &&
+        isCliente() &&
+        request.resource.data.clienteId == request.auth.uid &&
+        pedidoExisteEParticipante(request.resource.data.pedidoId);
+
+      allow update, delete: if isAdmin();
+    }
+
+    // ================= SUPORTE =================
+    match /suporte_chats/{chatId} {
+      allow read: if isAdmin() || (
+        signedIn() && resource.data.userId == request.auth.uid
+      );
+
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update: if isAdmin() || (
+        signedIn() && resource.data.userId == request.auth.uid
+      );
+
+      allow delete: if isAdmin();
+
+      match /mensagens/{msgId} {
+        allow read: if isAdmin() || (
+          signedIn() && resource.data.autorId == request.auth.uid
+        );
+
+        allow create: if signedIn() &&
+          request.resource.data.autorId == request.auth.uid;
+
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ================= CONFIG =================
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /configuracoes/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ================= DEFAULT =================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

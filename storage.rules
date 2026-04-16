@@ -1,0 +1,161 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserPath() {
+      return /databases/(default)/documents/users/$(request.auth.uid);
+    }
+
+    function currentUserExists() {
+      return signedIn() && firestore.exists(currentUserPath());
+    }
+
+    function currentUserDoc() {
+      return firestore.get(currentUserPath());
+    }
+
+    function isAdmin() {
+      return currentUserExists() &&
+        currentUserDoc().data.tipo == "admin";
+    }
+
+    function isOwner(userId) {
+      return signedIn() &&
+        request.auth.uid == userId &&
+        currentUserExists();
+    }
+
+    function pedidoDoc(pedidoId) {
+      return firestore.get(/databases/(default)/documents/pedidos/$(pedidoId)).data;
+    }
+
+    function pedidoExists(pedidoId) {
+      return firestore.exists(/databases/(default)/documents/pedidos/$(pedidoId));
+    }
+
+    function isPedidoParticipant(pedidoId) {
+      return signedIn()
+        && pedidoExists(pedidoId)
+        && (
+          pedidoDoc(pedidoId).clienteId == request.auth.uid ||
+          pedidoDoc(pedidoId).profissionalId == request.auth.uid
+        );
+    }
+
+    function isImage() {
+      return request.resource != null &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    function isPdf() {
+      return request.resource != null &&
+        request.resource.contentType == 'application/pdf';
+    }
+
+    function isImageOrPdf() {
+      return isImage() || isPdf();
+    }
+
+    function sizeUnder5MB() {
+      return request.resource != null &&
+        request.resource.size < 5 * 1024 * 1024;
+    }
+
+    function sizeUnder10MB() {
+      return request.resource != null &&
+        request.resource.size < 10 * 1024 * 1024;
+    }
+
+    function validFileName(fileName) {
+      return fileName.matches('^[a-zA-Z0-9._-]+$');
+    }
+
+    // ================= CHAT (IMAGENS DO PEDIDO) =================
+    match /chats/{pedidoId}/{fileName} {
+      allow read, write: if isPedidoParticipant(pedidoId) &&
+        validFileName(fileName) &&
+        isImage() &&
+        sizeUnder5MB();
+    }
+
+    // ================= CLIENTE =================
+    match /clientes/{userId}/foto-perfil.jpg {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if (isOwner(userId) && isImage() && sizeUnder5MB()) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ================= PROFISSIONAL =================
+    match /profissionais/{userId}/foto-perfil.jpg {
+      allow read: if true;
+      allow write: if (isOwner(userId) && isImage() && sizeUnder5MB()) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /profissionais/{userId}/portfolio/{fileName} {
+      allow read: if true;
+      allow write: if (
+        (isOwner(userId) && validFileName(fileName) && isImage() && sizeUnder5MB()) ||
+        isAdmin()
+      );
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ================= DOCUMENTOS (VERIFICAÇÃO) =================
+    match /profissionais/{userId}/documentos/{fileName} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if (
+        (isOwner(userId) || isAdmin()) &&
+        validFileName(fileName) &&
+        isImageOrPdf() &&
+        sizeUnder10MB()
+      );
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ================= COMPROVANTES =================
+    match /profissionais/{userId}/comprovantes/{fileName} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if (
+        (isOwner(userId) || isAdmin()) &&
+        validFileName(fileName) &&
+        isImageOrPdf() &&
+        sizeUnder10MB()
+      );
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ================= SUPORTE =================
+    match /suporte/{userId}/{fileName} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if (
+        (isOwner(userId) || isAdmin()) &&
+        validFileName(fileName) &&
+        isImageOrPdf() &&
+        sizeUnder10MB()
+      );
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /suporte/{userId}/{chamadoId}/{fileName} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if (
+        (isOwner(userId) || isAdmin()) &&
+        validFileName(fileName) &&
+        validFileName(chamadoId) &&
+        isImageOrPdf() &&
+        sizeUnder10MB()
+      );
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ================= BLOQUEIO TOTAL =================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

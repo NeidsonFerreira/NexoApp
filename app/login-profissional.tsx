@@ -39,6 +39,7 @@ import { auth, db, functions } from "../lib/firebase";
 import { safeRequest } from "../lib/firebaseService";
 import { logError, logEvent } from "../lib/logger";
 import { isOnline } from "../lib/network";
+import { registrarPushNotificationsAsync } from "../lib/notifications";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -384,6 +385,8 @@ export default function LoginProfissional() {
     try {
       await finalizarCadastroSocialProfissional(nomeBase);
       await recarregarUserData();
+
+      await registrarPushNotificationsAsync();
 
       const validacao = await validarContaProfissional(currentUser.uid);
 

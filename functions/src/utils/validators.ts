@@ -12,9 +12,11 @@ export type PedidoStatus =
 
 export function requireAuthUid(uid?: string): string {
   const value = String(uid || "").trim();
+
   if (!value) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
   }
+
   return value;
 }
 
@@ -37,6 +39,31 @@ export function requireString(
     throw new HttpsError(
       "invalid-argument",
       `${field} ultrapassa ${maxLen} caracteres.`
+    );
+  }
+
+  return clean;
+}
+
+// 🔥 NOVO (MUITO ÚTIL)
+export function optionalString(
+  value: unknown,
+  maxLen = 200
+): string | undefined {
+  if (value === undefined || value === null) return undefined;
+
+  if (typeof value !== "string") {
+    throw new HttpsError("invalid-argument", "Valor inválido.");
+  }
+
+  const clean = value.trim();
+
+  if (!clean) return undefined;
+
+  if (clean.length > maxLen) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Texto ultrapassa ${maxLen} caracteres.`
     );
   }
 

@@ -72,3 +72,117 @@ const tipoSeguro =
   if (!tipoSeguro) {
   return <Redirect href="/entrada" />;
 }
+
+
+
+// 1. VALIDAÇÃO DE SEGURANÇA (O que você já tinha, mantive igual)
+  useEffect(() => {
+    const veioDoFluxoDeTrajeto =
+      !!profissionalIdAtivo ||
+      !!clienteIdParam ||
+      coordenadaValida(clienteLatAtivo, clienteLngAtivo) ||
+      pedidoStatusAtivo === "a_caminho" ||
+      pedidoStatusAtivo === "cliente_a_caminho";
+
+    if (!veioDoFluxoDeTrajeto) {
+      setAguardandoContextoTrajeto(false);
+      return;
+    }
+
+    const faltaContextoMinimo =
+      !contaAtual ||
+      !pedidoStatusAtivo ||
+      (pedidoStatusAtivo === "cliente_a_caminho" || pedidoStatusAtivo === "a_caminho") &&
+      !profissionalIdAtivo &&
+      !clienteIdParam;
+
+    if (faltaContextoMinimo) {
+      setAguardandoContextoTrajeto(true);
+      return;
+    }
+
+    const precisaProfissional = contaAtual?.tipo === "cliente" && !!profissionalIdAtivo;
+    const precisaCliente = contaAtual?.tipo === "profissional" && (pedidoStatusAtivo === "a_caminho" || pedidoStatusAtivo === "cliente_a_caminho");
+
+    if (precisaProfissional && !profissionalSelecionado) {
+      setAguardandoContextoTrajeto(true);
+      return;
+    }
+
+    if (precisaCliente && !clienteSelecionado && !coordenadaValida(clienteLatAtivo, clienteLngAtivo)) {
+      setAguardandoContextoTrajeto(true);
+      return;
+    }
+
+    setAguardandoContextoTrajeto(false);
+  }, [
+    contaAtual, profissionalSelecionado, clienteSelecionado, profissionalIdAtivo,
+    clienteIdAtivo, clienteLatParam, clienteLngParam, pedidoStatusAtivo,
+  ]);
+
+  // 2. SINCRONIZADORES DE REFERÊNCIA (Mantive igual)
+  useEffect(() => { localAtualRef.current = localAtual; }, [localAtual]);
+  useEffect(() => { profissionalSelecionadoRef.current = profissionalSelecionado; }, [profissionalSelecionado]);
+  useEffect(() => { clienteSelecionadoRef.current = clienteSelecionado; }, [clienteSelecionado]);
+  useEffect(() => { seguindoCameraRef.current = seguindoCamera; }, [seguindoCamera]);
+
+  // 3. RADAR EM TEMPO REAL (O SEGREDO DO UBER)
+  useEffect(() => {
+    // Define quem o app deve "vigiar" no mapa
+    const idOutraPessoa = rotaClienteAcompanhandoProfissionalMovel 
+      ? profissionalSelecionado?.id 
+      : (rotaProfissionalFixoAcompanhandoCliente ? clienteSelecionado?.id : null);
+
+    if (idOutraPessoa) {
+      const unsub = onSnapshot(doc(db, "usuarios", idOutraPessoa), (snapshot) => {
+        const dados = snapshot.data();
+        if (dados?.localizacaoAtual) {
+          setPosicaoOutraPessoa({
+            latitude: dados.localizacaoAtual.latitude,
+            longitude: dados.localizacaoAtual.longitude,
+            heading: dados.localizacaoAtual.heading || 0
+          });
+        }
+      });
+      return () => unsub();
+    }
+  }, [rotaStatus, profissionalSelecionado, clienteSelecionado]);
+
+  // 4. DESENHISTA DE ROTA (O CORAÇÃO DO GPS)
+  useEffect(() => {
+    let pontoA = null; // Início da linha azul
+    let pontoB = null; // Fim da linha azul
+
+    // Caso 1: Cliente indo até o Profissional Fixo
+    if (rotaClienteAteProfissionalFixo && profissionalSelecionado) {
+      pontoA = localAtual; 
+      pontoB = { latitude: profissionalSelecionado.latitude, longitude: profissionalSelecionado.longitude };
+    }
+    // Caso 2: Profissional Fixo vendo o Cliente chegar
+    else if (rotaProfissionalFixoAcompanhandoCliente && posicaoOutraPessoa) {
+      pontoA = posicaoOutraPessoa; // O Cliente vindo
+      pontoB = { latitude: contaAtual?.latitude, longitude: contaAtual?.longitude }; // Sua sede fixa
+    }
+    // Caso 3: Cliente vendo o Profissional chegar (Uber)
+    else if (rotaClienteAcompanhandoProfissionalMovel && posicaoOutraPessoa) {
+      pontoA = posicaoOutraPessoa; // O Profissional vindo
+      pontoB = localAtual; // Você esperando
+    }
+    // Caso 4: Profissional Móvel indo até o Cliente
+    else if (rotaProfissionalMovelAteCliente && clienteSelecionado) {
+      pontoA = localAtual;
+      pontoB = clienteSelecionado;
+    }
+
+    // Só desenha se tiver os dois pontos válidos
+    if (pontoA?.latitude && pontoB?.latitude) {
+      buscarRota(pontoA, pontoB);
+    }
+  }, [posicaoOutraPessoa, localAtual, rotaStatus]);
+
+  // 5. AVALIAÇÕES (Mantive igual)
+  useEffect(() => {
+    if (!profissionais.length) return;
+    avaliacoesCarregadasRef.current = false;
+    carregarAvaliacoes();
+  }, [profissionais]);
