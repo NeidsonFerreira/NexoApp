@@ -7,7 +7,6 @@ node_modules/
 !.env.example
 
 # Firebase / Google
-google-services.json
 GoogleService-Info.plist
 .firebase/
 
