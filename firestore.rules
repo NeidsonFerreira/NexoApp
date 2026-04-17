@@ -116,11 +116,21 @@ service cloud.firestore {
         );
     }
 
+    function chatIdValido(chatId) {
+      return chatId is string && chatId.size() > 0;
+    }
+
+    function pedidoDoChat(chatId) {
+      return get(/databases/$(database)/documents/pedidos/$(chatId)).data;
+    }
+
     function chatParticipant(chatId) {
-      return exists(/databases/$(database)/documents/chats/$(chatId)) &&
+      return signedIn() &&
+        chatIdValido(chatId) &&
+        exists(/databases/$(database)/documents/pedidos/$(chatId)) &&
         (
-          get(/databases/$(database)/documents/chats/$(chatId)).data.clienteId == request.auth.uid ||
-          get(/databases/$(database)/documents/chats/$(chatId)).data.profissionalId == request.auth.uid
+          pedidoDoChat(chatId).clienteId == request.auth.uid ||
+          pedidoDoChat(chatId).profissionalId == request.auth.uid
         );
     }
 
@@ -161,8 +171,12 @@ service cloud.firestore {
       allow read: if isAdmin() || chatParticipant(chatId);
 
       allow create: if signedIn() &&
-        request.resource.data.clienteId == request.auth.uid &&
-        pedidoExisteEParticipante(request.resource.data.pedidoId);
+        request.resource.data.pedidoId == chatId &&
+        chatParticipant(chatId) &&
+        (
+          request.resource.data.clienteId == pedidoDoChat(chatId).clienteId &&
+          request.resource.data.profissionalId == pedidoDoChat(chatId).profissionalId
+        );
 
       allow update: if isAdmin() || chatParticipant(chatId);
 
@@ -171,7 +185,6 @@ service cloud.firestore {
       match /mensagens/{mensagemId} {
         allow read: if isAdmin() || chatParticipant(chatId);
 
-        // 🔥 CORRIGIDO (agora chat funciona)
         allow create: if chatParticipant(chatId) &&
           request.resource.data.autorId == request.auth.uid;
 

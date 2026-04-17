@@ -1,2 +1,1 @@
-import { lazyRoute } from "../lib/lazyRoute";
-export default lazyRoute(() => import("./_screens/perfil-profissional"));
+export { default } from "./_screens/perfil-profissional";

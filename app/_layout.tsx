@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack, router } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -10,6 +11,10 @@ import { NetworkStatusProvider } from "../contexts/NetworkStatusContext";
 import { ThemeProviderApp, useAppTheme } from "../contexts/ThemeContext";
 import { isExpoGoAndroid } from "../lib/isExpoGoAndroid";
 import { logError, logEvent } from "../lib/logger";
+
+void SplashScreen.preventAutoHideAsync().catch(() => {
+  // noop
+});
 
 type NotificationData = {
   tela?: string;

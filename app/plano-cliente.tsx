@@ -1,2 +1,1 @@
-import { lazyRoute } from "../lib/lazyRoute";
-export default lazyRoute(() => import("./_screens/plano-cliente"));
+export { default } from "./_screens/plano-cliente";

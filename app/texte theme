@@ -186,3 +186,6 @@ const tipoSeguro =
     avaliacoesCarregadasRef.current = false;
     carregarAvaliacoes();
   }, [profissionais]);
+
+
+  eas build -p android --profile development

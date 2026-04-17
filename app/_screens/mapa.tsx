@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Linking,
@@ -214,6 +215,8 @@ type MarcadorProfissionalListaProps = {
   tracksViewChanges: boolean;
   onSelectProf: (id: string) => void;
 };
+
+const MAX_PROFISSIONAIS_MAPA_INICIAL = 20;
 
 const MarcadorProfissionalListaItem = memo(function MarcadorProfissionalListaItem({
   profId,
@@ -1389,6 +1392,7 @@ function Mapa() {
 
   const navegacaoComVozNavegador =
     rotaClienteIndoAteProfissionalFixo || rotaProfissionalIndoAteClienteMovel;
+  const motoristaDaRota = navegacaoComVozNavegador;
 
   useEffect(() => {
     navegadorComInstrucaoVozRef.current = navegacaoComVozNavegador;
@@ -1399,6 +1403,13 @@ function Mapa() {
       resetarNavegacaoVoz();
     }
   }, [navegacaoComVozNavegador]);
+
+  useEffect(() => {
+    // Voz TTS habilitada apenas para quem está dirigindo no fluxo atual.
+    if (!motoristaDaRota && vozAtiva) {
+      setVozAtiva(false);
+    }
+  }, [motoristaDaRota, vozAtiva]);
 
   function seguirUsuarioNoMapa() {
     if (!mapRef.current) return;
@@ -3152,6 +3163,8 @@ function textoETA() {
   const avaliacaoAtual = profissionalSelecionado
     ? avaliacoesMap[profissionalSelecionado.id]
     : null;
+  const [regiaoVisivelMapa, setRegiaoVisivelMapa] = useState<Region | null>(null);
+  const [carregandoMarcadores, setCarregandoMarcadores] = useState(false);
 
   const profissionaisRender = useMemo(() => {
     if (!localAtual) {
@@ -3210,6 +3223,24 @@ function textoETA() {
         return a.distanciaKmCalculada - b.distanciaKmCalculada;
       });
   }, [profissionais, localAtual]);
+
+  const profissionaisNoMapa = useMemo(() => {
+    if (!regiaoVisivelMapa) {
+      return profissionaisRender.slice(0, MAX_PROFISSIONAIS_MAPA_INICIAL);
+    }
+
+    const minLat = regiaoVisivelMapa.latitude - regiaoVisivelMapa.latitudeDelta / 2;
+    const maxLat = regiaoVisivelMapa.latitude + regiaoVisivelMapa.latitudeDelta / 2;
+    const minLng = regiaoVisivelMapa.longitude - regiaoVisivelMapa.longitudeDelta / 2;
+    const maxLng = regiaoVisivelMapa.longitude + regiaoVisivelMapa.longitudeDelta / 2;
+
+    return profissionaisRender.filter((prof) => {
+      if (!coordenadaValida(prof.latitude, prof.longitude)) return false;
+      const lat = prof.latitude as number;
+      const lng = prof.longitude as number;
+      return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+    });
+  }, [profissionaisRender, regiaoVisivelMapa]);
 
   profissionaisRenderRef.current = profissionaisRender;
 
@@ -3422,6 +3453,11 @@ function textoETA() {
         loadingEnabled
         onMapReady={() => setMapaPronto(true)}
         onPanDrag={() => setSeguindoCamera(false)}
+        onRegionChangeComplete={(region) => {
+          setCarregandoMarcadores(true);
+          setRegiaoVisivelMapa(region);
+          setTimeout(() => setCarregandoMarcadores(false), 120);
+        }}
       >
         {rotaProfissionalAcompanhandoClienteFixo && baseProfissionalFixo ? (
           <MarcadorEstabelecimentoFixoMemo
@@ -3448,7 +3484,7 @@ function textoETA() {
           )}
 
         {!rotaProfissionalAcompanhandoClienteFixo &&
-          profissionaisRender.map((prof) => {
+          profissionaisNoMapa.map((prof) => {
             const plano = planoDoProfissional(prof.plano);
             const borderColor =
               plano === "turbo"
@@ -3599,8 +3635,15 @@ function textoETA() {
         >
           <Text style={styles.infoTitle}>Nexo Mapa</Text>
           <Text style={styles.infoText}>
-            {`Profissionais no mapa: ${profissionaisRender.length} • Prioridade Turbo > Mensal > Gratuito`}
+            {`Profissionais no mapa: ${profissionaisNoMapa.length} • Prioridade Turbo > Mensal > Gratuito`}
           </Text>
+        </View>
+      )}
+
+      {carregandoMarcadores && (
+        <View style={styles.mapMarkersLoading}>
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+          <Text style={styles.mapMarkersLoadingText}>Atualizando marcadores...</Text>
         </View>
       )}
 
@@ -4001,6 +4044,23 @@ function createStyles(theme: any) {
       marginTop: 6,
       textAlign: "center",
       lineHeight: 18,
+    },
+    mapMarkersLoading: {
+      position: "absolute",
+      top: 140,
+      alignSelf: "center",
+      backgroundColor: "rgba(0,0,0,0.62)",
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    mapMarkersLoadingText: {
+      color: "#fff",
+      fontSize: 12,
+      fontWeight: "700",
     },
 
     center: {

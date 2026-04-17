@@ -1,2 +1,1 @@
-import { lazyRoute } from "../lib/lazyRoute";
-export default lazyRoute(() => import("./_screens/chat"));
+export { default } from "./_screens/chat";

@@ -66,6 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const carregarUserData = useCallback(async (userId: string) => {
     try {
+      if (!auth.currentUser || auth.currentUser.uid !== userId) {
+        if (mountedRef.current) setUserData(null);
+        return;
+      }
+
       const snap = await safeRequest(
         () => getDoc(doc(db, "users", userId)),
         {

@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth, initializeAuth } from "firebase/auth";
+import { getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
@@ -30,11 +30,17 @@ const firebaseConfig = {
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const EXPECTED_FIREBASE_PROJECT_ID = "nexo-8cc2c";
+
+if (firebaseConfig.projectId !== EXPECTED_FIREBASE_PROJECT_ID) {
+  console.warn(
+    `[firebase] projectId divergente. Atual=${firebaseConfig.projectId} Esperado=${EXPECTED_FIREBASE_PROJECT_ID}`
+  );
+}
 
 const auth = (() => {
   try {
-    const { getReactNativePersistence } = require("firebase/auth/react-native");
-
+    // Persistência local em React Native para manter sessão após fechar app.
     return initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     });

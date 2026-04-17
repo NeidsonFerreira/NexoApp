@@ -1,8 +1,10 @@
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import {
   collection,
   doc,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -79,6 +81,8 @@ type EnviarMensagemChatResponse = {
   tipo?: "texto" | "imagem";
 };
 
+const MAX_MENSAGENS_CHAT = 120;
+
 function formatarHora(data: any) {
   try {
     if (!data) return "";
@@ -121,6 +125,14 @@ export default function Chat() {
   const flatListRef = useRef<FlatList>(null);
   const meuUid = auth.currentUser?.uid || "";
 
+  useEffect(() => {
+    console.log("🔐 Chat.authState", {
+      pedidoId,
+      uid: auth.currentUser?.uid ?? null,
+      email: auth.currentUser?.email ?? null,
+    });
+  }, [pedidoId]);
+
   const ultimoItem = useMemo(() => {
     if (!mensagens.length) return null;
     return mensagens[mensagens.length - 1];
@@ -146,6 +158,10 @@ export default function Chat() {
 
   useEffect(() => {
     if (!pedidoId || !auth.currentUser) {
+      console.log("❌ Chat.semAuthOuPedido", {
+        pedidoId: pedidoId || null,
+        uid: auth.currentUser?.uid ?? null,
+      });
       setCarregandoTela(false);
       setErroTela("Pedido não encontrado.");
       return;
@@ -182,6 +198,13 @@ export default function Chat() {
         setCarregandoTela(false);
       },
       (error) => {
+        const err = error as { code?: string; message?: string };
+        console.log("❌ Chat.ouvirPedido", {
+          code: err?.code ?? "sem_code",
+          message: err?.message ?? String(error),
+          pedidoId,
+          uid: auth.currentUser?.uid ?? null,
+        });
         handleError(error, "Chat.ouvirPedido");
         setErroTela("Não foi possível carregar este chat.");
         setCarregandoTela(false);
@@ -206,6 +229,13 @@ export default function Chat() {
         }
       },
       (error) => {
+        const err = error as { code?: string; message?: string };
+        console.log("❌ Chat.ouvirMeta", {
+          code: err?.code ?? "sem_code",
+          message: err?.message ?? String(error),
+          pedidoId,
+          uid: auth.currentUser?.uid ?? null,
+        });
         handleError(error, "Chat.ouvirMeta");
       }
     );
@@ -218,7 +248,8 @@ export default function Chat() {
 
     const q = query(
       collection(db, "chats", pedidoId, "mensagens"),
-      orderBy("criadoEm", "asc")
+      orderBy("criadoEm", "desc"),
+      limit(MAX_MENSAGENS_CHAT)
     );
 
     const unsubscribe = onSnapshot(
@@ -230,7 +261,7 @@ export default function Chat() {
             ...dados,
             id: docSnap.id,
           } as Mensagem;
-        });
+        }).reverse();
 
         setMensagens(lista);
 
@@ -239,6 +270,13 @@ export default function Chat() {
         }, 120);
       },
       (error) => {
+        const err = error as { code?: string; message?: string };
+        console.log("❌ Chat.ouvirMensagens", {
+          code: err?.code ?? "sem_code",
+          message: err?.message ?? String(error),
+          pedidoId,
+          uid: auth.currentUser?.uid ?? null,
+        });
         handleError(error, "Chat.ouvirMensagens");
         setErroTela("Não foi possível carregar as mensagens.");
       }
@@ -349,7 +387,7 @@ export default function Chat() {
       const resultado = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.6,
       });
 
       if (resultado.canceled || !resultado.assets?.length) {
@@ -359,7 +397,15 @@ export default function Chat() {
       setCarregandoImagem(true);
 
       const asset = resultado.assets[0];
-      const resposta = await fetch(asset.uri);
+      const imagemOtimizada = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1280 } }],
+        {
+          compress: 0.6,
+          format: ImageManipulator.SaveFormat.JPEG,
+        }
+      );
+      const resposta = await fetch(imagemOtimizada.uri);
       const blob = await resposta.blob();
 
       const caminho = `chats/${pedidoId}/${Date.now()}_${auth.currentUser?.uid}.jpg`;

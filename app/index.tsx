@@ -1,94 +1,101 @@
-import { router } from "expo-router";
-import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { Video, ResizeMode, AVPlaybackStatus } from "expo-av";
+import { Redirect, router } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useAuth } from "../contexts/AuthContext";
 
-const SPLASH_TIMEOUT_MS = 7000;
+let splashPlayedThisSession = false;
 
-export default function SplashIndex() {
-  const { user, authReady, loading } = useAuth();
+const SPLASH_TIMEOUT_MS = 9000;
 
-  const [erroVideo, setErroVideo] = useState(false);
-  const navegouRef = useRef(false);
+type DestinoFinal = "/entrada" | "/cliente-home" | "/painel-profissional" | "/admin/dashboard";
 
-  const player = useVideoPlayer(
-    require("../assets/videos/splash.mp4"),
-    (videoPlayer) => {
-      videoPlayer.loop = false;
+export default function IndexRoute() {
+  const { user, userData, authReady, loading } = useAuth();
+  const [videoTerminou, setVideoTerminou] = useState(false);
+  const splashOcultaRef = useRef(false);
+  const navegadoRef = useRef(false);
 
-      const endSubscription = videoPlayer.addListener("playToEnd", () => {
-        if (navegouRef.current) return;
-        navegouRef.current = true;
-        router.replace("/entrada");
+  const destinoFinal = useMemo<DestinoFinal>(() => {
+    if (!user) return "/entrada";
+    const tipo = String(userData?.tipo || "").toLowerCase();
+    if (tipo === "admin") return "/admin/dashboard";
+    if (tipo === "profissional") return "/painel-profissional";
+    return "/cliente-home";
+  }, [user, userData?.tipo]);
+
+  function ocultarSplashNativa() {
+    if (splashOcultaRef.current) return;
+    splashOcultaRef.current = true;
+    requestAnimationFrame(() => {
+      void SplashScreen.hideAsync().catch(() => {
+        // noop
       });
+    });
+  }
 
-      const statusSubscription = videoPlayer.addListener(
-        "statusChange",
-        ({ status, error }) => {
-          if (status === "error" || error) {
-            setErroVideo(true);
+  function finalizarVideo() {
+    if (videoTerminou) return;
+    setVideoTerminou(true);
+  }
 
-            if (navegouRef.current) return;
-            navegouRef.current = true;
-            router.replace("/entrada");
-          }
-        }
-      );
-
-      videoPlayer.play();
-
-      return () => {
-        endSubscription.remove();
-        statusSubscription.remove();
-      };
+  function onPlaybackStatusUpdate(status: AVPlaybackStatus) {
+    if (!status.isLoaded) return;
+    if (status.didJustFinish) {
+      finalizarVideo();
     }
-  );
+  }
 
   useEffect(() => {
-    // Se já existe sessão pronta, não mostra splash de vídeo de novo.
-    if (authReady && !loading && user && !navegouRef.current) {
-      navegouRef.current = true;
-      router.replace("/entrada");
-      return;
+    if (splashPlayedThisSession) {
+      ocultarSplashNativa();
+      setVideoTerminou(true);
     }
+  }, []);
 
-    const fallback = setTimeout(() => {
-      if (navegouRef.current) return;
-      navegouRef.current = true;
-      router.replace("/entrada");
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      finalizarVideo();
     }, SPLASH_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, []);
 
-    return () => {
-      clearTimeout(fallback);
-    };
-  }, [authReady, loading, user]);
+  useEffect(() => {
+    if (!videoTerminou) return;
+    splashPlayedThisSession = true;
+    if (!authReady || loading || navegadoRef.current) return;
+    navegadoRef.current = true;
+    router.replace(destinoFinal);
+  }, [videoTerminou, authReady, loading, destinoFinal]);
 
-  if (authReady && !loading && user) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#fff" />
-        <Text style={styles.text}>Entrando...</Text>
-      </View>
-    );
+  if (splashPlayedThisSession && authReady && !loading) {
+    return <Redirect href={destinoFinal} />;
+  }
+
+  if (videoTerminou) {
+    return null;
   }
 
   return (
-    <View style={styles.container}>
-      {erroVideo ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#fff" />
-          <Text style={styles.text}>Carregando...</Text>
+    <View style={styles.container} onLayout={ocultarSplashNativa}>
+      <StatusBar hidden />
+      <Video
+        source={require("../assets/videos/splash.mp4")}
+        style={styles.video}
+        useNativeControls={false}
+        resizeMode={ResizeMode.COVER}
+        shouldPlay
+        isLooping={false}
+        isMuted
+        onLoad={ocultarSplashNativa}
+        onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+      />
+      {(!authReady || loading) && (
+        <View style={styles.overlayLoading}>
+          <ActivityIndicator size="small" color="#ffffff" />
         </View>
-      ) : (
-        <VideoView
-          player={player}
-          style={styles.video}
-          contentFit="contain"
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
-          surfaceType="textureView"
-        />
       )}
     </View>
   );
@@ -97,20 +104,15 @@ export default function SplashIndex() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#081a2f",
+    backgroundColor: "#000000",
   },
   video: {
     width: "100%",
     height: "100%",
   },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#081a2f",
-  },
-  text: {
-    marginTop: 10,
-    color: "#fff",
+  overlayLoading: {
+    position: "absolute",
+    bottom: 36,
+    alignSelf: "center",
   },
 });

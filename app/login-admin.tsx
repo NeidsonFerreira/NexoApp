@@ -1,2 +1,1 @@
-import { lazyRoute } from "../lib/lazyRoute";
-export default lazyRoute(() => import("./_screens/login-admin"));
+export { default } from "./_screens/login-admin";

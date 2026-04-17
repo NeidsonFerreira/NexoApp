@@ -3,22 +3,28 @@ import { router, useLocalSearchParams } from "expo-router";
 import { auth, db, functions } from "../../lib/firebase";
 import {
   collection,
+  DocumentData,
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
+  QueryDocumentSnapshot,
+  startAfter,
   where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   Linking,
+  ListRenderItemInfo,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -94,6 +100,11 @@ type LiberacaoWhatsappResponse = {
   data?: string;
   profissionalIdJaUsado?: string;
 };
+
+const PAGE_SIZE_PROFISSIONAIS = 30;
+const MAX_PROFISSIONAIS_LISTA = 240;
+const MAX_AVALIACOES_RESUMO = 300;
+const CARD_ITEM_HEIGHT_ESTIMATE = 340;
 
 function planoDoProfissional(plano?: string): PlanoProfissional {
   if (plano === "mensal" || plano === "turbo") return plano;
@@ -194,6 +205,125 @@ function textoBotaoWhatsapp(
   return "WHATSAPP";
 }
 
+type ProfissionalCardProps = {
+  prof: Profissional;
+  index: number;
+  menorDistancia: number | null;
+  exibirAnuncios: boolean;
+  theme: any;
+  styles: any;
+  planoCliente: PlanoCliente;
+  liberandoWppId: string | null;
+  onAbrirPerfil: (prof: Profissional) => void;
+  onAbrirSolicitacao: (prof: Profissional) => void;
+  onAbrirWhatsapp: (prof: Profissional) => void;
+};
+
+const ProfissionalCard = memo(function ProfissionalCard({
+  prof,
+  index,
+  menorDistancia,
+  exibirAnuncios,
+  theme,
+  styles,
+  planoCliente,
+  liberandoWppId,
+  onAbrirPerfil,
+  onAbrirSolicitacao,
+  onAbrirWhatsapp,
+}: ProfissionalCardProps) {
+  const plano = planoDoProfissional(prof.plano);
+  const tag = tagDecisao(prof, menorDistancia);
+  const avatarBorderColor =
+    plano === "turbo"
+      ? "#EAB308"
+      : plano === "mensal"
+      ? theme.colors.primary
+      : theme.colors.success;
+
+  return (
+    <View>
+      <TouchableOpacity
+        activeOpacity={0.96}
+        style={[
+          styles.card,
+          plano === "turbo"
+            ? styles.cardTurbo
+            : plano === "mensal"
+            ? styles.cardMensal
+            : styles.cardGratuito,
+        ]}
+        onPress={() => onAbrirPerfil(prof)}
+      >
+        <View style={styles.tagRow}>
+          <View style={styles.tagDecision}>
+            <Text style={styles.tagDecisionText}>{tag}</Text>
+          </View>
+          <View
+            style={[
+              styles.badgePlano,
+              plano === "turbo"
+                ? styles.badgeTurbo
+                : plano === "mensal"
+                ? styles.badgeMensal
+                : styles.badgeGratuito,
+            ]}
+          >
+            <Text style={styles.badgePlanoText}>{textoPlano(prof.plano)}</Text>
+          </View>
+        </View>
+        <View style={styles.topRow}>
+          <View style={[styles.avatarBorder, { borderColor: avatarBorderColor }]}>
+            {prof.fotoPerfil ? (
+              <Image source={{ uri: prof.fotoPerfil }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarFallbackText}>
+                  {String(prof.nome || "P").charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.topInfo}>
+            <Text style={styles.nome} numberOfLines={1}>
+              {prof.nome || "Profissional"}
+            </Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {prof.servicoPrincipal || prof.servico || prof.servicos?.[0] || "Serviço não informado"}
+              {" • "}
+              {prof.cidade || "Cidade não informada"}
+            </Text>
+            <Text style={styles.rating}>
+              {formatarNota(prof.mediaAvaliacoes, prof.totalAvaliacoes)}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.actionsWrap}>
+          <ActionButton
+            title="SOLICITAR SERVIÇO"
+            onPress={() => onAbrirSolicitacao(prof)}
+            variant="primary"
+          />
+          <ActionButton
+            title={textoBotaoWhatsapp(prof, planoCliente, liberandoWppId)}
+            onPress={() => onAbrirWhatsapp(prof)}
+            variant={
+              planoDoProfissional(prof.plano) === "gratuito" && planoCliente !== "premium"
+                ? "warning"
+                : "success"
+            }
+          />
+        </View>
+      </TouchableOpacity>
+      {exibirAnuncios && (index + 1) % 4 === 0 && (
+        <View style={styles.midBannerWrap}>
+          <AdBanner isPremium={false} />
+        </View>
+      )}
+    </View>
+  );
+});
+
 export default function Profissionais() {
   const { theme } = useAppTheme();
   const styles = createStyles(theme);
@@ -209,10 +339,14 @@ export default function Profissionais() {
   const [ordenacao, setOrdenacao] = useState<Ordenacao>("relevancia");
   const [erroTela, setErroTela] = useState("");
   const [liberandoWppId, setLiberandoWppId] = useState<string | null>(null);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [temMaisProfissionais, setTemMaisProfissionais] = useState(true);
 
   const clienteLocalRef = useRef<ClienteLocal | null>(null);
-    const carregandoRef = useRef(false);
+  const carregandoRef = useRef(false);
   const ultimoRefreshRef = useRef(0);
+  const ultimoDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const avaliacoesResumoRef = useRef<AvaliacaoResumo>({});
 
   function podeRefrescar(intervaloMs = 4000) {
     const agora = Date.now();
@@ -286,7 +420,10 @@ export default function Profissionais() {
     async function carregarResumoAvaliacoes(): Promise<AvaliacaoResumo> {
      try {
       const querySnapshot = await safeRequest(
-        () => getDocs(collection(db, "avaliacoesResumo")),
+        () =>
+          getDocs(
+            query(collection(db, "avaliacoesResumo"), limit(MAX_AVALIACOES_RESUMO))
+          ),
         {
           timeoutMs: 15000,
           tentativas: 2,
@@ -325,7 +462,85 @@ export default function Profissionais() {
     }
   }
 
-  async function buscarProfissionais() {
+  async function mapearProfissionais(
+    docs: QueryDocumentSnapshot<DocumentData>[],
+    avaliacoesResumo: AvaliacaoResumo
+  ) {
+    const cliente = clienteLocalRef.current;
+
+    const lista = await Promise.all(
+      docs.map(async (docSnap) => {
+        try {
+          const prof = docSnap.data() as Omit<Profissional, "id">;
+
+          let lat = prof.latitude ?? null;
+          let lon = prof.longitude ?? null;
+
+          if (
+            (lat == null || lon == null) &&
+            prof.tipoAtendimento === "fixo" &&
+            prof.endereco
+          ) {
+            const enderecoCompleto = `${prof.endereco}, ${prof.cidade || ""}`;
+            const coords = await buscarCoordenadasEndereco(enderecoCompleto);
+
+            if (coords) {
+              lat = coords.latitude;
+              lon = coords.longitude;
+            }
+          }
+
+          let distanciaTexto = "Sem distância";
+          let distanciaValor: number | null = null;
+
+          if (cliente && lat != null && lon != null) {
+            const km = calcularDistanciaKm(
+              cliente.latitude,
+              cliente.longitude,
+              lat,
+              lon
+            );
+
+            distanciaValor = km;
+            distanciaTexto = `${km.toFixed(1)} km`;
+          }
+
+          const avaliacao = avaliacoesResumo[docSnap.id];
+
+          const planoScore = prioridadePlano(prof.plano) * 1000;
+          const notaScore = (avaliacao?.media ?? 0) * 100;
+          const volumeScore = (avaliacao?.total ?? 0) * 2;
+          const distanciaScore =
+            distanciaValor != null ? Math.max(0, 100 - distanciaValor) : 0;
+          const onlineScore = prof.online ? 50 : 0;
+
+          return {
+            id: docSnap.id,
+            ...prof,
+            latitude: lat,
+            longitude: lon,
+            distanciaTexto,
+            distanciaValor,
+            mediaAvaliacoes: avaliacao?.media ?? null,
+            totalAvaliacoes: avaliacao?.total ?? 0,
+            score:
+              planoScore +
+              notaScore +
+              volumeScore +
+              distanciaScore +
+              onlineScore,
+          } as Profissional;
+        } catch (error) {
+          logError({ error, profissionalId: docSnap.id }, "Profissionais.mapProfissional");
+          return null;
+        }
+      })
+    );
+
+    return lista.filter(Boolean) as Profissional[];
+  }
+
+  async function buscarProfissionais(reset = false) {
     if (carregandoRef.current) {
       return;
     }
@@ -335,110 +550,64 @@ export default function Profissionais() {
     try {
       setErroTela("");
 
-      const [cliente, avaliacoesResumo] = await Promise.all([
-        carregarLocalCliente(),
-        carregarResumoAvaliacoes(),
-      ]);
+      if (reset) {
+        setTemMaisProfissionais(true);
+        ultimoDocRef.current = null;
+        const [cliente, avaliacoesResumo] = await Promise.all([
+          carregarLocalCliente(),
+          carregarResumoAvaliacoes(),
+        ]);
+        clienteLocalRef.current = cliente;
+        avaliacoesResumoRef.current = avaliacoesResumo;
+      }
 
-      clienteLocalRef.current = cliente;
+      if (!temMaisProfissionais && !reset) return;
 
-      const q = query(
+      const limiteConsulta = Math.min(PAGE_SIZE_PROFISSIONAIS, MAX_PROFISSIONAIS_LISTA);
+      const q = ultimoDocRef.current && !reset
+        ? query(
+            collection(db, "users"),
+            where("tipo", "==", "profissional"),
+            where("verificacaoStatus", "==", "aprovado"),
+            where("bloqueado", "==", false),
+            orderBy("nome"),
+            startAfter(ultimoDocRef.current),
+            limit(limiteConsulta)
+          )
+        : query(
         collection(db, "users"),
         where("tipo", "==", "profissional"),
         where("verificacaoStatus", "==", "aprovado"),
-        where("bloqueado", "==", false)
+        where("bloqueado", "==", false),
+        orderBy("nome"),
+        limit(limiteConsulta)
       );
 
-      const querySnapshot = await safeRequest(
-        () => getDocs(q),
-        {
-          timeoutMs: 20000,
-          tentativas: 2,
-          exigirInternet: true,
-          dedupeKey: `profissionais:lista:${servicoFiltro || "todos"}`,
-          priority: 8,
-        }
+      const querySnapshot = await safeRequest(() => getDocs(q), {
+        timeoutMs: 20000,
+        tentativas: 2,
+        exigirInternet: true,
+        dedupeKey: `profissionais:lista:${servicoFiltro || "todos"}:${reset ? "reset" : "more"}`,
+        priority: 8,
+      });
+
+      const listaFinal = await mapearProfissionais(
+        querySnapshot.docs,
+        avaliacoesResumoRef.current
       );
 
-      const lista = await Promise.all(
-        querySnapshot.docs.map(async (docSnap) => {
-          try {
-            const prof = docSnap.data() as Omit<Profissional, "id">;
-
-            let lat = prof.latitude ?? null;
-            let lon = prof.longitude ?? null;
-
-            if (
-              (lat == null || lon == null) &&
-              prof.tipoAtendimento === "fixo" &&
-              prof.endereco
-            ) {
-              const enderecoCompleto = `${prof.endereco}, ${prof.cidade || ""}`;
-              const coords = await buscarCoordenadasEndereco(enderecoCompleto);
-
-              if (coords) {
-                lat = coords.latitude;
-                lon = coords.longitude;
-              }
-            }
-
-            let distanciaTexto = "Sem distância";
-            let distanciaValor: number | null = null;
-
-            if (cliente && lat != null && lon != null) {
-              const km = calcularDistanciaKm(
-                cliente.latitude,
-                cliente.longitude,
-                lat,
-                lon
-              );
-
-              distanciaValor = km;
-              distanciaTexto = `${km.toFixed(1)} km`;
-            }
-
-            const avaliacao = avaliacoesResumo[docSnap.id];
-
-            const planoScore = prioridadePlano(prof.plano) * 1000;
-            const notaScore = (avaliacao?.media ?? 0) * 100;
-            const volumeScore = (avaliacao?.total ?? 0) * 2;
-            const distanciaScore =
-              distanciaValor != null ? Math.max(0, 100 - distanciaValor) : 0;
-            const onlineScore = prof.online ? 50 : 0;
-
-            return {
-              id: docSnap.id,
-              ...prof,
-              latitude: lat,
-              longitude: lon,
-              distanciaTexto,
-              distanciaValor,
-              mediaAvaliacoes: avaliacao?.media ?? null,
-              totalAvaliacoes: avaliacao?.total ?? 0,
-              score:
-                planoScore +
-                notaScore +
-                volumeScore +
-                distanciaScore +
-                onlineScore,
-            } as Profissional;
-          } catch (error) {
-            logError(
-              { error, profissionalId: docSnap.id },
-              "Profissionais.mapProfissional"
-            );
-            return null;
-          }
-        })
+      ultimoDocRef.current = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+      setTemMaisProfissionais(
+        querySnapshot.size >= limiteConsulta &&
+          (reset ? listaFinal.length : profissionais.length + listaFinal.length) <
+            MAX_PROFISSIONAIS_LISTA
       );
-
-      const listaFinal = lista.filter(Boolean) as Profissional[];
-      setProfissionais(listaFinal);
+      setProfissionais((prev) => (reset ? listaFinal : [...prev, ...listaFinal]));
 
       logEvent(
         "profissionais_loaded",
         {
-          total: listaFinal.length,
+          total: reset ? listaFinal.length : profissionais.length + listaFinal.length,
           filtroServico: servicoFiltro || null,
         },
         "Profissionais"
@@ -458,7 +627,7 @@ export default function Profissionais() {
   async function iniciar() {
     try {
       setCarregando(true);
-      await Promise.all([carregarPlanoCliente(), buscarProfissionais()]);
+      await Promise.all([carregarPlanoCliente(), buscarProfissionais(true)]);
     } finally {
       setCarregando(false);
       setRefreshing(false);
@@ -474,7 +643,9 @@ export default function Profissionais() {
       collection(db, "users"),
       where("tipo", "==", "profissional"),
       where("verificacaoStatus", "==", "aprovado"),
-      where("bloqueado", "==", false)
+      where("bloqueado", "==", false),
+      orderBy("nome"),
+      limit(PAGE_SIZE_PROFISSIONAIS)
     );
 
     const unsubscribe = onSnapshot(
@@ -482,7 +653,7 @@ export default function Profissionais() {
       () => {
         if (!podeRefrescar(4000)) return;
 
-        buscarProfissionais().catch((error) => {
+        buscarProfissionais(true).catch((error) => {
           logError(error, "Profissionais.snapshotRefresh");
           handleError(error, "Profissionais.snapshotRefresh");
         });
@@ -686,6 +857,44 @@ async function abrirWhatsapp(prof: any) {
     });
   }
 
+  async function onEndReached() {
+    if (carregandoMais || carregando || refreshing || !temMaisProfissionais) return;
+    try {
+      setCarregandoMais(true);
+      await buscarProfissionais(false);
+    } finally {
+      setCarregandoMais(false);
+    }
+  }
+
+  const renderProfissional = useCallback(
+    ({ item: prof, index }: ListRenderItemInfo<Profissional>) => (
+      <ProfissionalCard
+        prof={prof}
+        index={index}
+        menorDistancia={menorDistancia}
+        exibirAnuncios={exibirAnuncios}
+        theme={theme}
+        styles={styles}
+        planoCliente={planoCliente}
+        liberandoWppId={liberandoWppId}
+        onAbrirPerfil={abrirPerfil}
+        onAbrirSolicitacao={abrirSolicitacao}
+        onAbrirWhatsapp={abrirWhatsapp}
+      />
+    ),
+    [menorDistancia, exibirAnuncios, theme, styles, planoCliente, liberandoWppId]
+  );
+
+  const getItemLayout = useCallback(
+    (_: ArrayLike<Profissional> | null | undefined, index: number) => ({
+      length: CARD_ITEM_HEIGHT_ESTIMATE,
+      offset: CARD_ITEM_HEIGHT_ESTIMATE * index,
+      index,
+    }),
+    []
+  );
+
   return (
     <ScreenContainer>
       <OfflineBanner />
@@ -886,148 +1095,25 @@ async function abrirWhatsapp(prof: any) {
           </View>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
+          data={profissionaisFiltrados}
+          keyExtractor={(item) => item.id}
+          renderItem={renderProfissional}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          {profissionaisFiltrados.map((prof, index) => {
-            const plano = planoDoProfissional(prof.plano);
-            const tag = tagDecisao(prof, menorDistancia);
-
-            const avatarBorderColor =
-              plano === "turbo"
-                ? "#EAB308"
-                : plano === "mensal"
-                ? theme.colors.primary
-                : theme.colors.success;
-
-            return (
-              <View key={prof.id}>
-                <TouchableOpacity
-                  activeOpacity={0.96}
-                  style={[
-                    styles.card,
-                    plano === "turbo"
-                      ? styles.cardTurbo
-                      : plano === "mensal"
-                      ? styles.cardMensal
-                      : styles.cardGratuito,
-                  ]}
-                  onPress={() => abrirPerfil(prof)}
-                >
-                  <View style={styles.tagRow}>
-                    <View style={styles.tagDecision}>
-                      <Text style={styles.tagDecisionText}>{tag}</Text>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.badgePlano,
-                        plano === "turbo"
-                          ? styles.badgeTurbo
-                          : plano === "mensal"
-                          ? styles.badgeMensal
-                          : styles.badgeGratuito,
-                      ]}
-                    >
-                      <Text style={styles.badgePlanoText}>{textoPlano(prof.plano)}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.topRow}>
-                    <View
-                      style={[
-                        styles.avatarBorder,
-                        {
-                          borderColor: avatarBorderColor,
-                        },
-                      ]}
-                    >
-                      {prof.fotoPerfil ? (
-                        <Image source={{ uri: prof.fotoPerfil }} style={styles.avatar} />
-                      ) : (
-                        <View style={styles.avatarFallback}>
-                          <Text style={styles.avatarFallbackText}>
-                            {String(prof.nome || "P").charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.topInfo}>
-                      <Text style={styles.nome} numberOfLines={1}>
-                        {prof.nome || "Profissional"}
-                      </Text>
-
-                      <Text style={styles.meta} numberOfLines={1}>
-                        {prof.servicoPrincipal ||
-                          prof.servico ||
-                          prof.servicos?.[0] ||
-                          "Serviço não informado"}
-                        {" • "}
-                        {prof.cidade || "Cidade não informada"}
-                      </Text>
-
-                      <Text style={styles.rating}>
-                        {formatarNota(prof.mediaAvaliacoes, prof.totalAvaliacoes)}
-                      </Text>
-
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoPill}>
-                          {prof.online ? "🟢 Online" : "⚪ Offline"}
-                        </Text>
-                        <Text style={styles.infoPill}>
-                          {prof.tipoAtendimento === "fixo"
-                            ? "📍 Fixo"
-                            : prof.tipoAtendimento === "movel"
-                            ? "🚗 Móvel"
-                            : "ℹ️ Atendimento"}
-                        </Text>
-                        <Text style={styles.infoPill}>
-                          {prof.distanciaTexto || "Sem distância"}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {!!prof.descricao && (
-                    <Text style={styles.descricao} numberOfLines={3}>
-                      {prof.descricao}
-                    </Text>
-                  )}
-
-                  <View style={styles.actionsWrap}>
-                    <ActionButton
-                      title="SOLICITAR SERVIÇO"
-                      onPress={() => abrirSolicitacao(prof)}
-                      variant="primary"
-                    />
-
-                    <ActionButton
-                      title={textoBotaoWhatsapp(prof, planoCliente, liberandoWppId)}
-                      onPress={() => abrirWhatsapp(prof)}
-                      variant={
-                        planoDoProfissional(prof.plano) === "gratuito" &&
-                        planoCliente !== "premium"
-                          ? "warning"
-                          : "success"
-                      }
-                    />
-                  </View>
-                </TouchableOpacity>
-
-                {exibirAnuncios && (index + 1) % 4 === 0 && (
-                  <View style={styles.midBannerWrap}>
-                    <AdBanner isPremium={false} />
-                  </View>
-                )}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.5}
+          getItemLayout={getItemLayout}
+          ListFooterComponent={
+            carregandoMais ? (
+              <View style={styles.footerLoading}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={styles.footerLoadingText}>Carregando mais profissionais...</Text>
               </View>
-            );
-          })}
-        </ScrollView>
+            ) : null
+          }
+        />
       )}
     </ScreenContainer>
   );
@@ -1204,6 +1290,17 @@ function createStyles(theme: any) {
     },
     listContent: {
       paddingBottom: 20,
+    },
+    footerLoading: {
+      paddingVertical: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+    footerLoadingText: {
+      color: theme.colors.textMuted,
+      fontSize: 12,
+      fontWeight: "600",
     },
     card: {
       borderRadius: 24,

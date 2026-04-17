@@ -4,7 +4,7 @@ import * as Notifications from "expo-notifications";
 import { getApps } from "firebase/app";
 import { Platform } from "react-native";
 import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { app, auth, db } from "./firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { isExpoGoAndroid } from "./isExpoGoAndroid";
 import { retry } from "./retry";
@@ -48,7 +48,7 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
       return null;
     }
 
-    // 🔥 projectId fixo (do google-services.json)
+    // projectId do projeto Firebase usado no push
     const projectId = "nexo-8cc2c";
     const firebaseProjectId = Constants.expoConfig?.extra?.firebaseProjectId
       ?? process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
@@ -103,7 +103,15 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
 
     return expoToken;
   } catch (error) {
-    console.log("❌ erro notificação:", error);
+    const err = error as { code?: string; message?: string; stack?: string };
+    console.log("❌ erro notificação detalhado:", {
+      code: err?.code ?? "sem_code",
+      message: err?.message ?? String(error),
+      stack: err?.stack ?? null,
+      firebaseAppName: app?.name ?? "desconhecido",
+      firebaseProjectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? null,
+      firebaseAppId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? null,
+    });
     logError(error, "notifications");
     return null;
   }

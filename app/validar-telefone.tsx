@@ -1,2 +1,1 @@
-import { lazyRoute } from "../lib/lazyRoute";
-export default lazyRoute(() => import("./_screens/validar-telefone"));
+export { default } from "./_screens/validar-telefone";
