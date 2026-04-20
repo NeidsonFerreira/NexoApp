@@ -9,11 +9,11 @@ return {
 ...config,
 android: {
 ...config.android,
-googleServicesFile: "./android/app/google-services.json",
+googleServicesFile: "./google-services.json",
 },
 ios: {
 ...config.ios,
-// Se futuramente usar Firebase no iOS, pode colocar aqui também
+// Futuro:
 // googleServicesFile: "./GoogleService-Info.plist",
 },
 };
