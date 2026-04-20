@@ -5,22 +5,16 @@
  * googleServicesFile = undefined e o Android perde o projeto FCM → FIS_AUTH_ERROR.
  */
 export default ({ config }) => {
-  const googleServicesFromEnv = process.env.GOOGLE_SERVICES_JSON;
-  const iosGoogleFromEnv = process.env.GOOGLE_SERVICES_INFOPLIST;
-
-  return {
-    ...config,
-    android: {
-      ...config.android,
-      ...(googleServicesFromEnv
-        ? { googleServicesFile: googleServicesFromEnv }
-        : {}),
-    },
-    ios: {
-      ...config.ios,
-      ...(iosGoogleFromEnv
-        ? { googleServicesFile: iosGoogleFromEnv }
-        : {}),
-    },
-  };
+return {
+...config,
+android: {
+...config.android,
+googleServicesFile: "./android/app/google-services.json",
+},
+ios: {
+...config.ios,
+// Se futuramente usar Firebase no iOS, pode colocar aqui também
+// googleServicesFile: "./GoogleService-Info.plist",
+},
+};
 };

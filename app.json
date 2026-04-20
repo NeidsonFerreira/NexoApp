@@ -22,7 +22,6 @@
     "android": {
       "package": "com.nexo.app",
       "softwareKeyboardLayoutMode": "resize",
-      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {},
       "config": {
         "googleMaps": {
