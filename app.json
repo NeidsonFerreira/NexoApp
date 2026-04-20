@@ -22,7 +22,7 @@
     "android": {
       "package": "com.nexo.app",
       "softwareKeyboardLayoutMode": "resize",
-      "adaptiveIcon": {},
+      "adaptiveIcon": {"backgroundColor": "#000000"},
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBDawhwhEmdCe6nqAhdmwSjdu6GQnsIJrs"
