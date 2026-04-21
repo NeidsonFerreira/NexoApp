@@ -30,7 +30,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/splashscreen_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
