@@ -7,15 +7,18 @@
     "icon": "./assets/images/icon.png",
     "scheme": "nexo",
     "userInterfaceStyle": "automatic",
+
     "androidStatusBar": {
       "hidden": true,
       "translucent": true,
       "backgroundColor": "#000000"
     },
+
     "ios": {
       "bundleIdentifier": "com.nexo.app",
       "supportsTablet": true
     },
+
     "android": {
       "package": "com.nexo.app",
       "softwareKeyboardLayoutMode": "resize",
@@ -30,41 +33,39 @@
         }
       }
     },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
+
     "splash": {
       "image": "./assets/splashscreen_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
+
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
           "image": "./assets/splashscreen_logo.png",
-          "backgroundColor": "#000000",
-          "dark": {
-            "image": "./assets/splashscreen_logo.png",
-            "backgroundColor": "#000000"
-          }
+          "backgroundColor": "#000000"
         }
       ],
-      "expo-video"
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3929212574112376~8719443360",
+          "iosAppId": "ca-app-pub-3929212574112376~4205483282"
+        }
+      ]
     ],
+
     "experiments": {
       "reactCompiler": true
     },
+
     "extra": {
       "router": {},
       "eas": {
         "projectId": "c9b1e493-aacf-48fb-949e-79b89b660718"
-      },
-      "googleMobileAds": {
-        "androidAppId": "ca-app-pub-3929212574112376~8719443360",
-        "iosAppId": "ca-app-pub-3929212574112376~4205483282"
       }
     }
   }
