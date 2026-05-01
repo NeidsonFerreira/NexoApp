@@ -221,3 +221,309 @@ const tipoSeguro =
   scrollEventThrottle={16}
 />
 
+profissionais
+
+function createStyles(theme: any) {
+  return StyleSheet.create({
+    premiumBanner: {
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      backgroundColor: theme.colors.background,
+      borderBottomWidth: 1,
+      borderColor: theme.colors.border,
+      marginBottom: 6,
+    },
+    premiumBannerText: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+    },
+    searchCard: {
+      marginBottom: 8,
+    },
+    inputBusca: {
+      height: 36,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      fontSize: 14,
+      color: theme.colors.text,
+    },
+
+    searchTitle: {
+      fontSize: 13,             // menor e mais discreto
+      fontWeight: "600",        // ainda legível, mas não exagerado
+      color: theme.colors.textMuted, // cor secundária
+      marginBottom: 4,
+    },
+
+    filtersWrap: {
+      marginBottom: 6,
+    },
+
+    topAdBanner: {
+      padding: 12,
+      marginBottom: 8,
+    },
+
+    listContent: {
+      paddingBottom: 120,
+    },
+    premiumBannerTitle: {
+      color: theme.colors.success,
+      fontSize: 18,
+      fontWeight: "800",
+      marginBottom: 6,
+    },
+    topAdLabel: {
+      color: theme.colors.warning,
+      fontSize: 12,
+      fontWeight: "800",
+      marginBottom: 4,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    topAdTitle: {
+      color: theme.colors.text,
+      fontSize: 18,
+      fontWeight: "800",
+      marginBottom: 6,
+    },
+    topAdText: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: 12,
+    },
+    topAdButtonWrap: {
+      marginTop: 4,
+    },
+    filterChip: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.cardSoft,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    filterChipActive: {
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary,
+    },
+    filterChipText: {
+      color: theme.colors.text,
+      fontSize: 12,
+      fontWeight: "800",
+    },
+    filterChipTextActive: {
+      color: "#fff",
+    },
+    sortWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    sortChip: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.card,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    sortChipActive: {
+      borderColor: theme.colors.success,
+      backgroundColor: "rgba(34,197,94,0.12)",
+    },
+    sortChipText: {
+      color: theme.colors.text,
+      fontSize: 12,
+      fontWeight: "800",
+    },
+    sortChipTextActive: {
+      color: theme.colors.success,
+    },
+    topBannerWrap: {
+      marginBottom: 14,
+      alignItems: "center",
+    },
+    midBannerWrap: {
+      marginTop: 4,
+      marginBottom: 14,
+      alignItems: "center",
+    },
+    stateBox: {
+      paddingVertical: 36,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    stateCard: {
+      backgroundColor: theme.colors.card,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: 18,
+      alignItems: "center",
+    },
+    stateTitle: {
+      color: theme.colors.text,
+      fontSize: 18,
+      fontWeight: "800",
+      marginBottom: 8,
+      textAlign: "center",
+    },
+    stateText: {
+      color: theme.colors.textMuted,
+      fontSize: 14,
+      lineHeight: 20,
+      textAlign: "center",
+      marginTop: 8,
+    },
+    emptyActions: {
+      gap: 10,
+      marginTop: 16,
+      width: "100%",
+    },
+    footerLoading: {
+      paddingVertical: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+    footerLoadingText: {
+      color: theme.colors.textMuted,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    card: {
+      borderRadius: 24,
+      padding: 16,
+      marginBottom: 14,
+      borderWidth: 1,
+    },
+    cardGratuito: {
+      backgroundColor: theme.colors.card,
+      borderColor: theme.colors.border,
+    },
+    cardMensal: {
+      backgroundColor: theme.colors.card,
+      borderColor: theme.colors.primary,
+    },
+    cardTurbo: {
+      backgroundColor: theme.colors.card,
+      borderColor: "#EAB308",
+    },
+    tagRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 12,
+    },
+    tagDecision: {
+      backgroundColor: theme.colors.cardSoft,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    tagDecisionText: {
+      color: theme.colors.text,
+      fontSize: 11,
+      fontWeight: "800",
+    },
+    topRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+    },
+    avatarBorder: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      borderWidth: 2.5,
+      padding: 2,
+      marginRight: 12,
+    },
+    avatar: {
+      width: "100%",
+      height: "100%",
+      borderRadius: 999,
+    },
+    avatarFallback: {
+      flex: 1,
+      borderRadius: 999,
+      backgroundColor: theme.colors.cardSoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarFallbackText: {
+      color: theme.colors.text,
+      fontSize: 24,
+      fontWeight: "800",
+    },
+    topInfo: {
+      flex: 1,
+    },
+    nome: {
+      color: theme.colors.text,
+      fontSize: 18,
+      fontWeight: "800",
+      marginBottom: 4,
+    },
+    meta: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: 6,
+    },
+    rating: {
+      color: theme.colors.text,
+      fontSize: 13,
+      fontWeight: "700",
+      marginBottom: 8,
+    },
+    infoRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    infoPill: {
+      color: theme.colors.textMuted,
+      fontSize: 12,
+      fontWeight: "700",
+      backgroundColor: theme.colors.cardSoft,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    badgePlano: {
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    badgeTurbo: {
+      backgroundColor: "rgba(234,179,8,0.15)",
+    },
+    badgeMensal: {
+      backgroundColor: "rgba(59,130,246,0.12)",
+    },
+    badgeGratuito: {
+      backgroundColor: "rgba(34,197,94,0.12)",
+    },
+    badgePlanoText: {
+      color: theme.colors.text,
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 0.4,
+    },
+    descricao: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+      marginTop: 12,
+      marginBottom: 14,
+    },
+    actionsWrap: {
+      gap: 10,
+      marginTop: 2,
+    },
+  });
+}

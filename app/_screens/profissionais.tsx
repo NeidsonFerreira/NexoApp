@@ -926,7 +926,160 @@ async function abrirWhatsapp(prof: any) {
     <ScreenContainer scroll={false}>
       <OfflineBanner />
 
-      {/* 🔥 LISTA COM HEADER DENTRO */}
+      {/* 🔥 HEADER FIXO ANIMADO */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: headerHeight,
+          minHeight: HEADER_MIN_HEIGHT,
+          overflow: "hidden",
+          backgroundColor: theme.colors.background,
+          zIndex: 10,
+          elevation: 10,
+          paddingHorizontal: 12,
+          paddingTop: 10,
+        }}
+      >
+        <AppHeader
+          title={
+            servicoFiltro
+              ? `Profissionais de ${servicoFiltro}`
+              : "Profissionais"
+          }
+          subtitle="Escolha com mais segurança"
+          onBack={() => router.back()}
+          showBackButton
+        />
+
+        {/* 🔥 PARTE QUE SOME NO SCROLL */}
+        <Animated.View
+          style={{
+            opacity: scrollY.interpolate({
+              inputRange: [0, 80],
+              outputRange: [1, 0],
+              extrapolate: "clamp",
+            }),
+            transform: [
+              {
+                translateY: scrollY.interpolate({
+                  inputRange: [0, 80],
+                  outputRange: [0, -20],
+                  extrapolate: "clamp",
+                }),
+              },
+            ],
+          }}
+        >
+          {/* PREMIUM */}
+          {planoCliente === "premium" ? (
+            <View style={styles.premiumBanner}>
+              <Text style={styles.premiumBannerText}>
+                Cliente Premium - sem anúncios
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.premiumBanner}
+              onPress={() => router.push("/plano-cliente")}
+            >
+              <Text style={styles.premiumBannerText}>
+                Assine Premium para remover anúncios
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* BUSCA + FILTROS */}
+          <View style={styles.searchCard}>
+            <TextInput
+              style={styles.inputBusca}
+              placeholder="Buscar por nome, serviço ou cidade"
+              placeholderTextColor={theme.colors.textMuted}
+              value={busca}
+              onChangeText={setBusca}
+            />
+
+            <View style={styles.filtersWrap}>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  somenteOnline && styles.filterChipActive,
+                ]}
+                onPress={() => setSomenteOnline((v) => !v)}
+              >
+                <Text style={styles.filterChipText}>Só online</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  filtroTipo === "fixo" && styles.filterChipActive,
+                ]}
+                onPress={() =>
+                  setFiltroTipo(filtroTipo === "fixo" ? "todos" : "fixo")
+                }
+              >
+                <Text style={styles.filterChipText}>Fixo</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  filtroTipo === "movel" && styles.filterChipActive,
+                ]}
+                onPress={() =>
+                  setFiltroTipo(filtroTipo === "movel" ? "todos" : "movel")
+                }
+              >
+                <Text style={styles.filterChipText}>Móvel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.sortWrap}>
+              <TouchableOpacity
+                style={[
+                  styles.sortChip,
+                  ordenacao === "relevancia" && styles.sortChipActive,
+                ]}
+                onPress={() => setOrdenacao("relevancia")}
+              >
+                <Text style={styles.sortChipText}>Relevância</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.sortChip,
+                  ordenacao === "mais_proximos" && styles.sortChipActive,
+                ]}
+                onPress={() => setOrdenacao("mais_proximos")}
+              >
+                <Text style={styles.sortChipText}>Mais próximos</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.sortChip,
+                  ordenacao === "melhor_avaliados" && styles.sortChipActive,
+                ]}
+                onPress={() => setOrdenacao("melhor_avaliados")}
+              >
+                <Text style={styles.sortChipText}>Melhor avaliados</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ADS */}
+          {!exibirAnuncios ? null : (
+            <View style={styles.topBannerWrap}>
+              <AdBanner isPremium={false} />
+            </View>
+          )}
+        </Animated.View>
+      </Animated.View>
+
+      {/* 🔥 LISTA */}
       <Animated.FlatList
         data={profissionaisFiltrados}
         keyExtractor={(item) => item.id}
@@ -939,136 +1092,16 @@ async function abrirWhatsapp(prof: any) {
         onEndReachedThreshold={0.5}
         getItemLayout={getItemLayout}
         scrollEventThrottle={16}
+
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+
         contentContainerStyle={{
+          paddingTop: HEADER_MAX_HEIGHT,
           paddingBottom: 120,
         }}
-
-        // 🔥 AQUI ESTÁ O TRUQUE DO HEADER COLAPSÁVEL
-        ListHeaderComponent={
-          <>
-            <OfflineBanner />
-
-            {/* HEADER NORMAL (NÃO ABSOLUTE) */}
-            <View style={{ paddingTop: 10 }}>
-              <AppHeader
-                title={
-                  servicoFiltro
-                    ? `Profissionais de ${servicoFiltro}`
-                    : "Profissionais"
-                }
-                subtitle="Escolha com mais segurança e mais chance de acertar"
-                onBack={() => router.back()}
-                showBackButton
-              />
-            </View>
-
-            {/* PREMIUM BANNER */}
-            {planoCliente === "premium" ? (
-              <View style={styles.premiumBanner}>
-                <Text style={styles.premiumBannerText}>
-                  Cliente Premium - sem anúncios
-                </Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.premiumBanner}
-                onPress={() => router.push("/plano-cliente")}
-              >
-                <Text style={styles.premiumBannerText}>
-                  Assine Premium para remover anúncios
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* SEARCH */}
-            <View style={styles.searchCard}>
-              <TextInput
-                style={styles.inputBusca}
-                placeholder="Buscar por nome, serviço ou cidade"
-                placeholderTextColor={theme.colors.textMuted}
-                value={busca}
-                onChangeText={setBusca}
-              />
-
-              <View style={styles.filtersWrap}>
-                <TouchableOpacity
-                  style={[
-                    styles.filterChip,
-                    somenteOnline && styles.filterChipActive,
-                  ]}
-                  onPress={() => setSomenteOnline((v) => !v)}
-                >
-                  <Text style={styles.filterChipText}>
-                    Só online
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.filterChip,
-                    filtroTipo === "fixo" && styles.filterChipActive,
-                  ]}
-                  onPress={() =>
-                    setFiltroTipo(filtroTipo === "fixo" ? "todos" : "fixo")
-                  }
-                >
-                  <Text style={styles.filterChipText}>Fixo</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.filterChip,
-                    filtroTipo === "movel" && styles.filterChipActive,
-                  ]}
-                  onPress={() =>
-                    setFiltroTipo(filtroTipo === "movel" ? "todos" : "movel")
-                  }
-                >
-                  <Text style={styles.filterChipText}>Móvel</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.sortWrap}>
-                <TouchableOpacity
-                  style={[
-                    styles.sortChip,
-                    ordenacao === "relevancia" && styles.sortChipActive,
-                  ]}
-                  onPress={() => setOrdenacao("relevancia")}
-                >
-                  <Text style={styles.sortChipText}>Relevância</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.sortChip,
-                    ordenacao === "mais_proximos" && styles.sortChipActive,
-                  ]}
-                  onPress={() => setOrdenacao("mais_proximos")}
-                >
-                  <Text style={styles.sortChipText}>Mais próximos</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.sortChip,
-                    ordenacao === "melhor_avaliados" && styles.sortChipActive,
-                  ]}
-                  onPress={() => setOrdenacao("melhor_avaliados")}
-                >
-                  <Text style={styles.sortChipText}>Melhor avaliados</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* BANNER ADS */}
-            {!exibirAnuncios ? null : (
-              <View style={styles.topBannerWrap}>
-                <AdBanner isPremium={false} />
-              </View>
-            )}
-          </>
-        }
       />
     </ScreenContainer>
   );
