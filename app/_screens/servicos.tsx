@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -14,6 +14,8 @@ import { AppHeader } from "../../components/AppHeader";
 import { OfflineBanner } from "../../components/OfflineBanner";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { useAppTheme } from "../../contexts/ThemeContext";
+import { auth, db } from "../../lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 type Categoria = {
   nome: string;
@@ -61,6 +63,33 @@ export default function Servicos() {
   const [busca, setBusca] = useState("");
   const [carregandoServico, setCarregandoServico] = useState<string | null>(null);
 
+  // 🔥 NOVO
+  const [planoCliente, setPlanoCliente] = useState<"gratuito" | "premium">("gratuito");
+
+  useEffect(() => {
+    async function carregarPlano() {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (!snap.exists()) return;
+
+        const dados = snap.data() as any;
+
+        setPlanoCliente(
+          String(dados.planoCliente || "").toLowerCase() === "premium"
+            ? "premium"
+            : "gratuito"
+        );
+      } catch {}
+    }
+
+    carregarPlano();
+  }, []);
+
+  const exibirAnuncios = planoCliente !== "premium";
+
   const categoriasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
 
@@ -103,18 +132,11 @@ export default function Servicos() {
         showBackButton
       />
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroBadge}>
-              <Ionicons
-                name="sparkles-outline"
-                size={16}
-                color={theme.colors.primary}
-              />
+              <Ionicons name="sparkles-outline" size={16} color={theme.colors.primary} />
               <Text style={styles.heroBadgeText}>Escolha inteligente</Text>
             </View>
           </View>
@@ -158,9 +180,12 @@ export default function Servicos() {
           ))}
         </View>
 
-        <View style={styles.bannerWrap}>
-          <AdBanner isPremium={false} />
-        </View>
+        {/* 🔥 CORREÇÃO AQUI */}
+        {exibirAnuncios && (
+          <View style={styles.bannerWrap}>
+            <AdBanner isPremium={false} />
+          </View>
+        )}
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Todas as categorias</Text>
@@ -171,11 +196,7 @@ export default function Servicos() {
 
         {categoriasFiltradas.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons
-              name="search-outline"
-              size={26}
-              color={theme.colors.textMuted}
-            />
+            <Ionicons name="search-outline" size={26} color={theme.colors.textMuted} />
             <Text style={styles.emptyTitle}>Nenhum serviço encontrado</Text>
             <Text style={styles.emptyText}>
               Tente buscar por outro nome ou limpe a busca para ver todas as categorias.
@@ -222,11 +243,7 @@ export default function Servicos() {
                     <Text style={styles.cardActionText}>
                       {carregando ? "Abrindo..." : "Ver profissionais"}
                     </Text>
-                    <Ionicons
-                      name="arrow-forward-outline"
-                      size={18}
-                      color={theme.colors.primary}
-                    />
+                    <Ionicons name="arrow-forward-outline" size={18} color={theme.colors.primary} />
                   </View>
                 </TouchableOpacity>
               );

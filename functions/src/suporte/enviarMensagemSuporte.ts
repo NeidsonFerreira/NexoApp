@@ -8,6 +8,8 @@ type RequestData = {
   tipo?: TipoMensagem;
   imagemUrl?: string;
   origem?: string;
+  categoria?: string;
+  topico?: string;
 };
 
 function limparTexto(valor: unknown) {
@@ -30,6 +32,10 @@ export const enviarMensagemSuporte = onCall<RequestData>(
     const tipo = (limparTexto(request.data?.tipo) || "texto") as TipoMensagem;
     const imagemUrl = limparTexto(request.data?.imagemUrl);
     const origem = limparTexto(request.data?.origem) || "geral";
+    const categoria =
+      limparTexto(request.data?.categoria) ||
+      limparTexto(request.data?.topico) ||
+      "Suporte Geral";
 
     if (!["texto", "imagem"].includes(tipo)) {
       throw new HttpsError("invalid-argument", "Tipo de mensagem inválido.");
@@ -104,6 +110,8 @@ export const enviarMensagemSuporte = onCall<RequestData>(
           criadoEm: chatSnap.exists ? chatSnap.data()?.criadoEm || serverTimestamp() : serverTimestamp(),
           isAnonimo,
           origemSuporte: origem,
+          categoria,
+          topico: categoria,
         },
         { merge: true }
       );
@@ -127,6 +135,8 @@ export const enviarMensagemSuporte = onCall<RequestData>(
           ultimaMensagem: resumo,
           atualizadoEm: serverTimestamp(),
           status: "aberto",
+          categoria,
+          topico: categoria,
         },
         { merge: true }
       );
@@ -151,6 +161,7 @@ export const enviarMensagemSuporte = onCall<RequestData>(
           tipo,
           resumo,
           origemSuporte: origem,
+          categoria,
           criadoEm: serverTimestamp(),
         },
         { merge: true }

@@ -53,6 +53,8 @@ type ChatSuporte = {
   criadoEm?: any;
   isAnonimo?: boolean;
   origemSuporte?: string;
+  categoria?: string;
+  topico?: string;
 };
 
 type MensagemSuporte = {
@@ -92,9 +94,10 @@ async function uriToBlob(uri: string): Promise<Blob> {
 export default function ChatSuporte() {
   const { theme, themeMode } = useAppTheme();
   const styles = createStyles(theme, themeMode);
-  const params = useLocalSearchParams<{ origem?: string }>();
+  const params = useLocalSearchParams<{ origem?: string; categoria?: string; topico?: string }>();
 
   const veioDeRecuperacao = params.origem === "recuperacao";
+  const categoriaParam = String(params.categoria || params.topico || "").trim();
 
   const [statusTela, setStatusTela] = useState<StatusTela>("carregando");
   const [chat, setChat] = useState<ChatSuporte | null>(null);
@@ -114,6 +117,20 @@ export default function ChatSuporte() {
   const placeholderTexto = veioDeRecuperacao
     ? "Explique seu problema de acesso..."
     : "Digite sua mensagem...";
+
+  function categoriaPorOrigem(origem?: string) {
+    const chave = String(origem || "").trim().toLowerCase();
+    if (chave === "ajuda_pedido_cliente") return "Dúvida sobre Pedido";
+    if (chave === "bug_app_cliente") return "Bug no App";
+    if (chave === "profissional_ticket") return "Suporte Técnico Profissional";
+    if (chave === "bug_profissional") return "Erro na Agenda";
+    return "";
+  }
+
+  const categoriaAtiva =
+    categoriaParam ||
+    categoriaPorOrigem(params.origem) ||
+    (veioDeRecuperacao ? "Recuperação de Conta" : "Suporte Geral");
 
   const podeEnviarTexto = useMemo(() => {
     return !!texto.trim() && !enviandoTexto && !enviandoImagem;
@@ -224,6 +241,8 @@ export default function ChatSuporte() {
             criadoEm: serverTimestamp(),
             isAnonimo: anonimo,
             origemSuporte: veioDeRecuperacao ? "recuperacao" : "geral",
+            categoria: categoriaAtiva,
+            topico: categoriaAtiva,
           },
           { merge: true }
         );
@@ -247,7 +266,7 @@ export default function ChatSuporte() {
               "Olá, estou sem acesso ao meu email e preciso de ajuda para recuperar minha conta.";
 
             const fn = httpsCallable<
-              { texto: string; tipo: "texto"; origem: string },
+              { texto: string; tipo: "texto"; origem: string; categoria: string },
               EnviarMensagemSuporteResponse
             >(functions, "enviarMensagemSuporte");
 
@@ -255,6 +274,7 @@ export default function ChatSuporte() {
               texto: textoInicial,
               tipo: "texto",
               origem: "recuperacao",
+              categoria: categoriaAtiva,
             });
           }
         }
@@ -317,7 +337,7 @@ export default function ChatSuporte() {
       if (unsubscribeChat) unsubscribeChat();
       if (unsubscribeMensagens) unsubscribeMensagens();
     };
-  }, [veioDeRecuperacao]);
+  }, [veioDeRecuperacao, categoriaAtiva]);
 
   function rolarParaFim() {
     requestAnimationFrame(() => {
@@ -354,7 +374,7 @@ export default function ChatSuporte() {
       }
 
       const fn = httpsCallable<
-        { texto: string; tipo: "texto"; origem: string },
+        { texto: string; tipo: "texto"; origem: string; categoria: string },
         EnviarMensagemSuporteResponse
       >(functions, "enviarMensagemSuporte");
 
@@ -362,6 +382,7 @@ export default function ChatSuporte() {
         texto: textoFinal,
         tipo: "texto",
         origem: veioDeRecuperacao ? "recuperacao" : "geral",
+        categoria: categoriaAtiva,
       });
 
       setTexto("");
@@ -424,7 +445,7 @@ export default function ChatSuporte() {
       const imagemUrl = await getDownloadURL(storageFileRef);
 
       const fn = httpsCallable<
-        { imagemUrl: string; tipo: "imagem"; origem: string },
+        { imagemUrl: string; tipo: "imagem"; origem: string; categoria: string },
         EnviarMensagemSuporteResponse
       >(functions, "enviarMensagemSuporte");
 
@@ -432,6 +453,7 @@ export default function ChatSuporte() {
         imagemUrl,
         tipo: "imagem",
         origem: veioDeRecuperacao ? "recuperacao" : "geral",
+        categoria: categoriaAtiva,
       });
 
       rolarParaFim();
@@ -479,7 +501,9 @@ export default function ChatSuporte() {
       <AppHeader
         title="Chat suporte"
         subtitle={
-          isAnonimo ? "Atendimento para visitante" : "Fale com nossa equipe"
+          isAnonimo
+            ? `Atendimento para visitante • ${categoriaAtiva}`
+            : `Fale com nossa equipe • ${categoriaAtiva}`
         }
         showBackButton
       />

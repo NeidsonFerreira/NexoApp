@@ -221,7 +221,9 @@ service cloud.firestore {
 
       match /mensagens/{msgId} {
         allow read: if isAdmin() || (
-          signedIn() && resource.data.autorId == request.auth.uid
+          signedIn() &&
+          exists(/databases/$(database)/documents/suporte_chats/$(chatId)) &&
+          get(/databases/$(database)/documents/suporte_chats/$(chatId)).data.userId == request.auth.uid
         );
 
         allow create: if signedIn() &&

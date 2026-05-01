@@ -10,7 +10,10 @@ export default function AjudaProfissional() {
   const styles = createStyles(theme);
 
   function abrirChatSuporte() {
-    router.push("/chat-suporte");
+  router.push({
+    pathname: "/chat-suporte",
+    params: { categoria: "Suporte Técnico Profissional" },
+  });
   }
 
   function abrirWhatsapp() {
@@ -43,7 +46,9 @@ export default function AjudaProfissional() {
 function abrirTicketProfissional() {
   router.push({
     pathname: "/chat-suporte",
-    params: { origem: "profissional_ticket" },
+    params: {
+      categoria: "Financeiro Profissional",
+    },
   });
 }
 
@@ -73,7 +78,17 @@ function respostaRapidaProfissional(tipo: "pedido" | "pagamento" | "visibilidade
 function reportarProblemaProfissional() {
   router.push({
     pathname: "/chat-suporte",
-    params: { origem: "bug_profissional" },
+    params: {
+      origem: "erro_agenda_profissional",
+      categoria: "Erro na Agenda",
+    },
+  });
+}
+
+function reportarClienteProfissional() {
+  router.push({
+    pathname: "/chat-suporte",
+    params: { categoria: "Denúncia de Cliente" },
   });
 }
 
@@ -198,7 +213,7 @@ function abrirFaq(titulo: string, resposta: string) {
 
           <View style={styles.buttonTop}>
             <ActionButton
-              title="Abrir chamado"
+              title="Dúvida sobre Repasses/Pagamentos"
               onPress={abrirTicketProfissional}
               variant="warning"
             />
@@ -206,9 +221,17 @@ function abrirFaq(titulo: string, resposta: string) {
 
           <View style={styles.buttonTop}>
             <ActionButton
-              title="Reportar problema"
+              title="Problema com Agenda/Calendário"
               onPress={reportarProblemaProfissional}
               variant="danger"
+            />
+          </View>
+
+          <View style={styles.buttonTop}>
+            <ActionButton
+              title="Reportar Comportamento de Cliente"
+              onPress={reportarClienteProfissional}
+              variant="neutral"
             />
           </View>
 

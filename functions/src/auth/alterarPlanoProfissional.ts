@@ -9,52 +9,74 @@ type RequestData = {
 };
 
 function textoPlano(plano: Plano) {
-  if (plano === "mensal") return "MENSAL";
-  if (plano === "turbo") return "TURBO";
-  return "GRATUITO";
+  switch (plano) {
+    case "mensal":
+      return "MENSAL";
+    case "turbo":
+      return "TURBO";
+    default:
+      return "GRATUITO";
+  }
 }
 
 export const alterarPlanoProfissional = onCall<RequestData>(
   { region: "southamerica-east1" },
   async (request) => {
-    const adminId = request.auth?.uid;
-    if (!adminId) {
-      throw new HttpsError("unauthenticated", "Admin não autenticado.");
+    const uid = request.auth?.uid;
+
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Usuário não autenticado.");
     }
 
-    const profissionalId = String(request.data?.profissionalId || "").trim();
-    const plano = String(request.data?.plano || "").trim().toLowerCase() as Plano;
+    const { profissionalId, plano } = request.data || {};
 
-    if (!profissionalId) {
-      throw new HttpsError("invalid-argument", "profissionalId é obrigatório.");
-    }
-
-    if (!["gratuito", "mensal", "turbo"].includes(plano)) {
+    // 🔥 valida plano
+    if (!plano || !["gratuito", "mensal", "turbo"].includes(plano)) {
       throw new HttpsError("invalid-argument", "Plano inválido.");
     }
 
-    const adminRef = db.collection("users").doc(adminId);
-    const adminSnap = await adminRef.get();
+    // 🔥 busca usuário logado
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
 
-    if (!adminSnap.exists || adminSnap.data()?.tipo !== "admin") {
-      throw new HttpsError("permission-denied", "Apenas admin pode alterar planos.");
+    if (!userSnap.exists) {
+      throw new HttpsError("not-found", "Usuário não encontrado.");
     }
 
-    const profissionalRef = db.collection("users").doc(profissionalId);
-    const profissionalSnap = await profissionalRef.get();
+    const user = userSnap.data() as any;
+    const isAdmin = user.tipo === "admin";
 
-    if (!profissionalSnap.exists) {
+    // 🔥 regra principal (admin ou próprio usuário)
+    const targetId = isAdmin ? profissionalId : uid;
+
+    if (!targetId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "profissionalId é obrigatório para admin."
+      );
+    }
+
+    // 🔥 busca profissional alvo
+    const profRef = db.collection("users").doc(targetId);
+    const profSnap = await profRef.get();
+
+    if (!profSnap.exists) {
       throw new HttpsError("not-found", "Profissional não encontrado.");
     }
 
-    const profissional = profissionalSnap.data() as Record<string, any>;
-    if (String(profissional.tipo || "").trim().toLowerCase() !== "profissional") {
-      throw new HttpsError("failed-precondition", "O usuário informado não é profissional.");
+    const profissional = profSnap.data() as any;
+
+    if (profissional.tipo !== "profissional") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Usuário não é profissional."
+      );
     }
 
-    const planoAnterior = String(profissional.plano || "gratuito").trim().toLowerCase();
+    const planoAnterior = profissional.plano || "gratuito";
 
-    await profissionalRef.set(
+    // 🔥 atualização principal
+    await profRef.set(
       {
         plano,
         atualizadoEm: serverTimestamp(),
@@ -62,22 +84,25 @@ export const alterarPlanoProfissional = onCall<RequestData>(
       { merge: true }
     );
 
+    // 🔥 log completo (igual padrão que você já usa)
     await db.collection("logsPlanosProfissionais").add({
-      profissionalId,
-      profissionalNome: String(profissional.nome || ""),
+      profissionalId: targetId,
+      profissionalNome: profissional.nome || "",
       planoAnterior,
       planoNovo: plano,
-      adminId,
-      adminNome: String(adminSnap.data()?.nome || ""),
+      planoNovoTexto: textoPlano(plano),
+      alteradoPor: uid,
+      alteradoPorTipo: user.tipo || "desconhecido",
       criadoEm: serverTimestamp(),
     });
 
     return {
       ok: true,
-      profissionalId,
+      profissionalId: targetId,
       planoAnterior,
       planoNovo: plano,
       planoNovoTexto: textoPlano(plano),
+      mensagem: "Plano atualizado com sucesso.",
     };
   }
 );

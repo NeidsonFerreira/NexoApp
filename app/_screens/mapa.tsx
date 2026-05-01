@@ -203,69 +203,7 @@ const MarcadorVeiculoMapaMemo = memo(function MarcadorVeiculoMapaMemo({
   );
 });
 
-type MarcadorProfissionalListaProps = {
-  profId: string;
-  latitude: number;
-  longitude: number;
-  borderColor: string;
-  markerSize: number;
-  imageSize: number;
-  fotoUri: string;
-  styles: any;
-  tracksViewChanges: boolean;
-  onSelectProf: (id: string) => void;
-};
-
 const MAX_PROFISSIONAIS_MAPA_INICIAL = 20;
-
-const MarcadorProfissionalListaItem = memo(function MarcadorProfissionalListaItem({
-  profId,
-  latitude,
-  longitude,
-  borderColor,
-  markerSize,
-  imageSize,
-  fotoUri,
-  styles,
-  tracksViewChanges,
-  onSelectProf,
-}: MarcadorProfissionalListaProps) {
-  const onPress = useCallback(() => {
-    onSelectProf(profId);
-  }, [profId, onSelectProf]);
-
-  return (
-    <Marker
-      coordinate={{ latitude, longitude }}
-      anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={tracksViewChanges}
-      onPress={onPress}
-    >
-      <View collapsable={false} style={styles.markerWrapper}>
-        <View
-          style={[
-            styles.markerBubble,
-            {
-              width: markerSize,
-              height: markerSize,
-              borderRadius: markerSize / 2,
-              borderColor,
-            },
-          ]}
-        >
-          <Image
-            source={{ uri: fotoUri }}
-            style={{
-              width: imageSize,
-              height: imageSize,
-              borderRadius: imageSize / 2,
-            }}
-          />
-        </View>
-      </View>
-    </Marker>
-  );
-});
 
 type PedidoStatus =
   | ""
@@ -568,7 +506,13 @@ function Mapa() {
   useEffect(() => {
     if (!mapaPronto) return;
     setTracksViewMarcadores(true);
-    const id = setTimeout(() => setTracksViewMarcadores(false), 600);
+    const id = setTimeout(() => setTracksViewMarcadores(false), 1200);
+    return () => clearTimeout(id);
+  }, [mapaPronto, profissionais.length, pedidoStatusAtivo]);
+
+  useEffect(() => {
+    if (!mapaPronto) return;
+    const id = setTimeout(() => setCarregando(false), 2500);
     return () => clearTimeout(id);
   }, [mapaPronto]);
 
@@ -3244,16 +3188,6 @@ function textoETA() {
 
   profissionaisRenderRef.current = profissionaisRender;
 
-  const onSelectProfNoMapa = useCallback((id: string) => {
-    const lista = profissionaisRenderRef.current;
-    const prof = lista.find((p) => p.id === id);
-    if (!prof) return;
-    setProfissionalSelecionado(prof);
-    if (!trajetoAtivoRef.current) {
-      limparRotaRef.current();
-    }
-  }, []);
-
   const handleClienteMarcadorPress = useCallback(() => {
     setProfissionalSelecionado(null);
     if (!trajetoAtivoRef.current) {
@@ -3308,7 +3242,10 @@ function textoETA() {
   const mostrarInfoSimples =
     !trajetoAtivo && !profissionalSelecionado && !clienteSelecionado;
 
-  const mostrarOverlayCarregando = (!mapaPronto || carregando || (!localAtual && !rotaProfissionalAcompanhandoClienteFixo)) && !aguardandoContextoTrajeto && !(rotaProfissionalAcompanhandoClienteFixo && !!baseProfissionalFixo && !!clienteSelecionado);
+  const mostrarOverlayCarregando =
+    (!mapaPronto || carregando) &&
+    !aguardandoContextoTrajeto &&
+    !(rotaProfissionalAcompanhandoClienteFixo && !!baseProfissionalFixo && !!clienteSelecionado);
 
   const coordenadaVeiculoAtual: Coordenadas | null = useMemo(() => {
     if (rotaProfissionalAcompanhandoClienteFixo) {
@@ -3483,8 +3420,10 @@ function textoETA() {
             />
           )}
 
-        {!rotaProfissionalAcompanhandoClienteFixo &&
-          profissionaisNoMapa.map((prof) => {
+        {Array.isArray(profissionais) &&
+          !pedidoEhAtivo(pedidoStatusAtivo) &&
+          profissionais.map((prof) => {
+            if (!coordenadaValida(prof.latitude, prof.longitude)) return null;
             const plano = planoDoProfissional(prof.plano);
             const borderColor =
               plano === "turbo"
@@ -3493,24 +3432,43 @@ function textoETA() {
                 ? theme.colors.primary
                 : theme.colors.success;
             const markerSize =
-              plano === "turbo" ? 58 : plano === "mensal" ? 52 : 48;
+              plano === "turbo" ? 52 : plano === "mensal" ? 46 : 40;
             const imageSize =
-              plano === "turbo" ? 46 : plano === "mensal" ? 40 : 36;
-
+              plano === "turbo" ? 44 : plano === "mensal" ? 38 : 32;
             return (
-              <MarcadorProfissionalListaItem
+              <Marker
                 key={prof.id}
-                profId={prof.id}
-                latitude={prof.latitude as number}
-                longitude={prof.longitude as number}
-                borderColor={borderColor}
-                markerSize={markerSize}
-                imageSize={imageSize}
-                fotoUri={fotoPadrao(prof.fotoPerfil)}
-                styles={styles}
+                coordinate={{ latitude: prof.latitude, longitude: prof.longitude }}
+                onPress={() => setProfissionalSelecionado(prof)}
                 tracksViewChanges={tracksViewMarcadores}
-                onSelectProf={onSelectProfNoMapa}
-              />
+                anchor={{ x: 0.5, y: 0.5 }}
+                zIndex={999}
+              >
+                <View
+                  collapsable={false}
+                  style={{
+                    width: markerSize,
+                    height: markerSize,
+                    borderRadius: markerSize / 2,
+                    borderWidth: 3,
+                    borderColor,
+                    backgroundColor: "#FFF",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Image
+                    source={{ uri: fotoPadrao(prof.fotoPerfil) }}
+                    style={{
+                      width: imageSize,
+                      height: imageSize,
+                      borderRadius: imageSize / 2,
+                      backgroundColor: "#D1D5DB",
+                    }}
+                  />
+                </View>
+              </Marker>
             );
           })}
 
@@ -4198,23 +4156,25 @@ function createStyles(theme: any) {
       backgroundColor: "#a855f7",
     },
 
-    markerWrapper: {
-      width: 64,
-      height: 64,
+    markerContainer: {
+      width: 52,
+      height: 52,
       alignItems: "center",
       justifyContent: "center",
-      overflow: "visible",
-    },
-    markerBubble: {
-      backgroundColor: "#fff",
+      borderRadius: 26,
       borderWidth: 3,
-      justifyContent: "center",
-      alignItems: "center",
+      borderColor: theme.colors.primary,
+      backgroundColor: "#fff",
       shadowColor: "#000",
       shadowOpacity: 0.25,
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 3 },
-      elevation: 6,
+      elevation: 7,
+    },
+    markerImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
     },
 
     floatingCard: {

@@ -1,6 +1,7 @@
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
 import { auth, db, functions } from "../../lib/firebase";
+import { Animated } from "react-native";
 import {
   collection,
   DocumentData,
@@ -347,6 +348,28 @@ export default function Profissionais() {
   const ultimoRefreshRef = useRef(0);
   const ultimoDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
   const avaliacoesResumoRef = useRef<AvaliacaoResumo>({});
+  // HEADER ANIMADO
+  const HEADER_MAX_HEIGHT = 120;
+  const HEADER_MIN_HEIGHT = 60;
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, 120],
+    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
+    extrapolate: "clamp",
+  });
+  const headerSpacer = scrollY.interpolate({
+    inputRange: [0, 120],
+    outputRange: [HEADER_MAX_HEIGHT + 10, HEADER_MIN_HEIGHT + 10],
+    extrapolate: "clamp",
+  });
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0.8], // opacidade inicial → reduzida
+    extrapolate: "clamp",
+  });
+
 
   function podeRefrescar(intervaloMs = 4000) {
     const agora = Date.now();
@@ -417,18 +440,15 @@ export default function Profissionais() {
     }
   }
 
-    async function carregarResumoAvaliacoes(): Promise<AvaliacaoResumo> {
-     try {
+  async function carregarResumoAvaliacoes(): Promise<AvaliacaoResumo> {
+    try {
       const querySnapshot = await safeRequest(
-        () =>
-          getDocs(
-            query(collection(db, "avaliacoesResumo"), limit(MAX_AVALIACOES_RESUMO))
-          ),
+        () => getDocs(collection(db, "avaliacoes")),
         {
           timeoutMs: 15000,
           tentativas: 2,
           exigirInternet: true,
-          dedupeKey: "profissionais:avaliacoesResumo",
+          dedupeKey: "profissionais:avaliacoes",
           priority: 4,
         }
       );
@@ -438,26 +458,33 @@ export default function Profissionais() {
       querySnapshot.forEach((docSnap) => {
         const dados = docSnap.data() as any;
 
-        mapa[docSnap.id] = {
-          media:
-            typeof dados.media === "number"
-              ? dados.media
-              : typeof dados.mediaAvaliacoes === "number"
-              ? dados.mediaAvaliacoes
-              : 0,
-          total:
-            typeof dados.total === "number"
-              ? dados.total
-              : typeof dados.totalAvaliacoes === "number"
-              ? dados.totalAvaliacoes
-              : 0,
-        };
+        const profissionalId = String(dados.profissionalId || "");
+
+        if (!profissionalId) return;
+
+        if (!mapa[profissionalId]) {
+          mapa[profissionalId] = {
+            media: 0,
+            total: 0,
+          };
+        }
+
+        mapa[profissionalId].media += Number(dados.nota || 0);
+        mapa[profissionalId].total += 1;
+      });
+
+      // 🔥 CALCULAR MÉDIA FINAL
+      Object.keys(mapa).forEach((id) => {
+        const item = mapa[id];
+        item.media =
+          item.total > 0
+            ? Number((item.media / item.total).toFixed(1))
+            : 0;
       });
 
       return mapa;
     } catch (error) {
-      logError(error, "Profissionais.carregarResumoAvaliacoes");
-      handleError(error, "Profissionais.carregarResumoAvaliacoes");
+      console.log("Erro avaliações:", error);
       return {};
     }
   }
@@ -896,225 +923,153 @@ async function abrirWhatsapp(prof: any) {
   );
 
   return (
-    <ScreenContainer>
+    <ScreenContainer scroll={false}>
       <OfflineBanner />
 
-      <AppHeader
-        title={servicoFiltro ? `Profissionais de ${servicoFiltro}` : "Profissionais"}
-        subtitle="Escolha com mais segurança e mais chance de acertar"
-        onBack={() => router.back()}
-        showBackButton
-      />
+      {/* 🔥 LISTA COM HEADER DENTRO */}
+      <Animated.FlatList
+        data={profissionaisFiltrados}
+        keyExtractor={(item) => item.id}
+        renderItem={renderProfissional}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.5}
+        getItemLayout={getItemLayout}
+        scrollEventThrottle={16}
+        contentContainerStyle={{
+          paddingBottom: 120,
+        }}
 
-      {planoCliente === "premium" ? (
-        <View style={styles.premiumBanner}>
-          <Text style={styles.premiumBannerTitle}>Cliente Premium</Text>
-          <Text style={styles.premiumBannerText}>
-            Você está navegando sem anúncios.
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.topAdBanner}>
-          <Text style={styles.topAdLabel}>Publicidade</Text>
-          <Text style={styles.topAdTitle}>Quer navegar sem anúncios?</Text>
-          <Text style={styles.topAdText}>
-            Assine o plano premium do cliente e tenha uma experiência mais limpa.
-          </Text>
-          <View style={styles.topAdButtonWrap}>
-            <ActionButton
-              title="PLANO PREMIUM"
-              onPress={() => router.push("/plano-cliente")}
-              variant="warning"
-            />
-          </View>
-        </View>
-      )}
+        // 🔥 AQUI ESTÁ O TRUQUE DO HEADER COLAPSÁVEL
+        ListHeaderComponent={
+          <>
+            <OfflineBanner />
 
-      <View style={styles.searchCard}>
-        <Text style={styles.searchTitle}>Buscar profissional</Text>
-        <TextInput
-          style={styles.inputBusca}
-          placeholder="Buscar por nome, serviço ou cidade"
-          placeholderTextColor={theme.colors.textMuted}
-          value={busca}
-          onChangeText={setBusca}
-        />
+            {/* HEADER NORMAL (NÃO ABSOLUTE) */}
+            <View style={{ paddingTop: 10 }}>
+              <AppHeader
+                title={
+                  servicoFiltro
+                    ? `Profissionais de ${servicoFiltro}`
+                    : "Profissionais"
+                }
+                subtitle="Escolha com mais segurança e mais chance de acertar"
+                onBack={() => router.back()}
+                showBackButton
+              />
+            </View>
 
-        <View style={styles.filtersWrap}>
-          <TouchableOpacity
-            style={[styles.filterChip, somenteOnline && styles.filterChipActive]}
-            onPress={() => setSomenteOnline((v) => !v)}
-            activeOpacity={0.9}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                somenteOnline && styles.filterChipTextActive,
-              ]}
-            >
-              Só online
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              filtroTipo === "fixo" && styles.filterChipActive,
-            ]}
-            onPress={() => setFiltroTipo(filtroTipo === "fixo" ? "todos" : "fixo")}
-            activeOpacity={0.9}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                filtroTipo === "fixo" && styles.filterChipTextActive,
-              ]}
-            >
-              Fixo
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              filtroTipo === "movel" && styles.filterChipActive,
-            ]}
-            onPress={() => setFiltroTipo(filtroTipo === "movel" ? "todos" : "movel")}
-            activeOpacity={0.9}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                filtroTipo === "movel" && styles.filterChipTextActive,
-              ]}
-            >
-              Móvel
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.sortWrap}>
-          <TouchableOpacity
-            style={[
-              styles.sortChip,
-              ordenacao === "relevancia" && styles.sortChipActive,
-            ]}
-            onPress={() => setOrdenacao("relevancia")}
-            activeOpacity={0.9}
-          >
-            <Text
-              style={[
-                styles.sortChipText,
-                ordenacao === "relevancia" && styles.sortChipTextActive,
-              ]}
-            >
-              Relevância
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.sortChip,
-              ordenacao === "mais_proximos" && styles.sortChipActive,
-            ]}
-            onPress={() => setOrdenacao("mais_proximos")}
-            activeOpacity={0.9}
-          >
-            <Text
-              style={[
-                styles.sortChipText,
-                ordenacao === "mais_proximos" && styles.sortChipTextActive,
-              ]}
-            >
-              Mais próximos
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.sortChip,
-              ordenacao === "melhor_avaliados" && styles.sortChipActive,
-            ]}
-            onPress={() => setOrdenacao("melhor_avaliados")}
-            activeOpacity={0.9}
-          >
-            <Text
-              style={[
-                styles.sortChipText,
-                ordenacao === "melhor_avaliados" && styles.sortChipTextActive,
-              ]}
-            >
-              Melhor avaliados
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {!exibirAnuncios ? null : (
-        <View style={styles.topBannerWrap}>
-          <AdBanner isPremium={false} />
-        </View>
-      )}
-
-      {carregando ? (
-        <View style={styles.stateBox}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.stateText}>Carregando profissionais...</Text>
-        </View>
-      ) : erroTela ? (
-        <View style={styles.stateCard}>
-          <Text style={styles.stateTitle}>Falha ao carregar</Text>
-          <Text style={styles.stateText}>{erroTela}</Text>
-          <View style={styles.emptyActions}>
-            <ActionButton title="TENTAR NOVAMENTE" onPress={iniciar} variant="primary" />
-          </View>
-        </View>
-      ) : profissionaisFiltrados.length === 0 ? (
-        <View style={styles.stateCard}>
-          <Text style={styles.stateTitle}>Nenhum profissional encontrado</Text>
-          <Text style={styles.stateText}>
-            Tente mudar os filtros, buscar outro termo ou abrir o mapa para ampliar a busca.
-          </Text>
-
-          <View style={styles.emptyActions}>
-            <ActionButton
-              title="ABRIR MAPA"
-              onPress={() => router.push("/mapa")}
-              variant="primary"
-            />
-            <ActionButton
-              title="LIMPAR FILTROS"
-              onPress={() => {
-                setBusca("");
-                setSomenteOnline(true);
-                setFiltroTipo("todos");
-                setOrdenacao("relevancia");
-              }}
-              variant="secondary"
-            />
-          </View>
-        </View>
-      ) : (
-        <FlatList
-          data={profissionaisFiltrados}
-          keyExtractor={(item) => item.id}
-          renderItem={renderProfissional}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.5}
-          getItemLayout={getItemLayout}
-          ListFooterComponent={
-            carregandoMais ? (
-              <View style={styles.footerLoading}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text style={styles.footerLoadingText}>Carregando mais profissionais...</Text>
+            {/* PREMIUM BANNER */}
+            {planoCliente === "premium" ? (
+              <View style={styles.premiumBanner}>
+                <Text style={styles.premiumBannerText}>
+                  Cliente Premium - sem anúncios
+                </Text>
               </View>
-            ) : null
-          }
-        />
-      )}
+            ) : (
+              <TouchableOpacity
+                style={styles.premiumBanner}
+                onPress={() => router.push("/plano-cliente")}
+              >
+                <Text style={styles.premiumBannerText}>
+                  Assine Premium para remover anúncios
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* SEARCH */}
+            <View style={styles.searchCard}>
+              <TextInput
+                style={styles.inputBusca}
+                placeholder="Buscar por nome, serviço ou cidade"
+                placeholderTextColor={theme.colors.textMuted}
+                value={busca}
+                onChangeText={setBusca}
+              />
+
+              <View style={styles.filtersWrap}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    somenteOnline && styles.filterChipActive,
+                  ]}
+                  onPress={() => setSomenteOnline((v) => !v)}
+                >
+                  <Text style={styles.filterChipText}>
+                    Só online
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    filtroTipo === "fixo" && styles.filterChipActive,
+                  ]}
+                  onPress={() =>
+                    setFiltroTipo(filtroTipo === "fixo" ? "todos" : "fixo")
+                  }
+                >
+                  <Text style={styles.filterChipText}>Fixo</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    filtroTipo === "movel" && styles.filterChipActive,
+                  ]}
+                  onPress={() =>
+                    setFiltroTipo(filtroTipo === "movel" ? "todos" : "movel")
+                  }
+                >
+                  <Text style={styles.filterChipText}>Móvel</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.sortWrap}>
+                <TouchableOpacity
+                  style={[
+                    styles.sortChip,
+                    ordenacao === "relevancia" && styles.sortChipActive,
+                  ]}
+                  onPress={() => setOrdenacao("relevancia")}
+                >
+                  <Text style={styles.sortChipText}>Relevância</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.sortChip,
+                    ordenacao === "mais_proximos" && styles.sortChipActive,
+                  ]}
+                  onPress={() => setOrdenacao("mais_proximos")}
+                >
+                  <Text style={styles.sortChipText}>Mais próximos</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.sortChip,
+                    ordenacao === "melhor_avaliados" && styles.sortChipActive,
+                  ]}
+                  onPress={() => setOrdenacao("melhor_avaliados")}
+                >
+                  <Text style={styles.sortChipText}>Melhor avaliados</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* BANNER ADS */}
+            {!exibirAnuncios ? null : (
+              <View style={styles.topBannerWrap}>
+                <AdBanner isPremium={false} />
+              </View>
+            )}
+          </>
+        }
+      />
     </ScreenContainer>
   );
 }
@@ -1122,31 +1077,54 @@ async function abrirWhatsapp(prof: any) {
 function createStyles(theme: any) {
   return StyleSheet.create({
     premiumBanner: {
-      backgroundColor: theme.colors.card,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      backgroundColor: theme.colors.background,
+      borderBottomWidth: 1,
+      borderColor: theme.colors.border,
+      marginBottom: 6,
+    },
+    premiumBannerText: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+    },
+    searchCard: {
+      marginBottom: 8,
+    },
+    inputBusca: {
+      height: 36,
       borderWidth: 1,
-      borderColor: theme.colors.success,
-      borderRadius: 22,
-      padding: 16,
-      marginBottom: 14,
+      borderColor: theme.colors.border,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      fontSize: 14,
+      color: theme.colors.text,
+    },
+
+    searchTitle: {
+      fontSize: 13,             // menor e mais discreto
+      fontWeight: "600",        // ainda legível, mas não exagerado
+      color: theme.colors.textMuted, // cor secundária
+      marginBottom: 4,
+    },
+
+    filtersWrap: {
+      marginBottom: 6,
+    },
+
+    topAdBanner: {
+      padding: 12,
+      marginBottom: 8,
+    },
+
+    listContent: {
+      paddingBottom: 120,
     },
     premiumBannerTitle: {
       color: theme.colors.success,
       fontSize: 18,
       fontWeight: "800",
       marginBottom: 6,
-    },
-    premiumBannerText: {
-      color: theme.colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    topAdBanner: {
-      backgroundColor: theme.colors.card,
-      borderWidth: 1,
-      borderColor: theme.colors.warning,
-      borderRadius: 22,
-      padding: 16,
-      marginBottom: 14,
     },
     topAdLabel: {
       color: theme.colors.warning,
@@ -1170,37 +1148,6 @@ function createStyles(theme: any) {
     },
     topAdButtonWrap: {
       marginTop: 4,
-    },
-    searchCard: {
-      backgroundColor: theme.colors.card,
-      borderRadius: 22,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: 16,
-      marginBottom: 14,
-    },
-    searchTitle: {
-      color: theme.colors.text,
-      fontSize: 16,
-      fontWeight: "700",
-      marginBottom: 10,
-    },
-    inputBusca: {
-      backgroundColor: theme.colors.cardSoft,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      color: theme.colors.text,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
-      fontSize: 15,
-      marginBottom: 12,
-    },
-    filtersWrap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      marginBottom: 10,
     },
     filterChip: {
       borderRadius: 999,
@@ -1287,9 +1234,6 @@ function createStyles(theme: any) {
       gap: 10,
       marginTop: 16,
       width: "100%",
-    },
-    listContent: {
-      paddingBottom: 20,
     },
     footerLoading: {
       paddingVertical: 16,

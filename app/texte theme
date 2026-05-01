@@ -189,3 +189,35 @@ const tipoSeguro =
 
 
   eas build -p android --profile development
+
+  <Animated.View
+  style={{
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: headerHeight,
+    opacity: headerOpacity,
+    zIndex: 10,
+    backgroundColor: theme.colors.background,
+  }}
+>
+  <AppHeader
+    title={servicoFiltro ? `Profissionais de ${servicoFiltro}` : "Profissionais"}
+    subtitle="Escolha com mais segurança e mais chance de acertar"
+    onBack={() => router.back()}
+    showBackButton
+  />
+</Animated.View>
+
+<FlatList
+  contentContainerStyle={{ paddingTop: 120 }} // altura inicial do header
+  data={profissionaisFiltrados}
+  ...
+  onScroll={Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    { useNativeDriver: false }
+  )}
+  scrollEventThrottle={16}
+/>
+

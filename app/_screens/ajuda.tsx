@@ -10,7 +10,10 @@ export default function Ajuda() {
   const styles = createStyles(theme);
 
   function abrirChatSuporte() {
-    router.push("/chat-suporte");
+    router.push({
+      pathname: "/chat-suporte",
+      params: { categoria: "Suporte Geral" },
+    });
   }
 
   function abrirWhatsappSuporte() {
@@ -51,7 +54,10 @@ export default function Ajuda() {
 
   
   function abrirTicketSuporte() {
-    router.push("/chat-suporte");
+    router.push({
+      pathname: "/chat-suporte",
+      params: { categoria: "Abrir Chamado" },
+    });
   }
 
   function autoRespostaRapida(chave: "pedido" | "pagamento" | "cadastro") {
@@ -82,6 +88,7 @@ export default function Ajuda() {
       pathname: "/chat-suporte",
       params: {
         origem: "bug_app_cliente",
+        categoria: "Bug no App",
       },
     });
   }
@@ -98,6 +105,7 @@ export default function Ajuda() {
       pathname: "/chat-suporte",
       params: {
         origem: "ajuda_pedido_cliente",
+        categoria: "Dúvida sobre Pedido",
       },
     });
   }

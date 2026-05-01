@@ -105,10 +105,10 @@ export default function Planos() {
   const [precoTurbo, setPrecoTurbo] = useState(49.9);
 
   const alterarPlanoProfissionalFn = httpsCallable<
-    { plano: PlanoId },
+    { profissionalId: string; plano: PlanoId },
     AlterarPlanoResponse
   >(functions, "alterarPlanoProfissional");
-
+  
   useEffect(() => {
     carregarPlanoAtual();
   }, []);
@@ -199,7 +199,10 @@ export default function Planos() {
               setCarregando(true);
               setPlanoProcessando(plano);
 
-              const result = await alterarPlanoProfissionalFn({ plano });
+              const result = await alterarPlanoProfissionalFn({
+                profissionalId: auth.currentUser!.uid,
+                plano,
+              });
               const planoResposta = normalizarPlano(result.data?.plano || plano);
 
               await carregarPlanoAtual();
