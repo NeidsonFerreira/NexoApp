@@ -23,7 +23,12 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#000000"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBDawhwhEmdCe6nqAhdmwSjdu6GQnsIJrs"
+        }
+      }
     },
     "web": {
       "output": "static",
@@ -60,8 +65,7 @@
       "googleMobileAds": {
         "androidAppId": "ca-app-pub-3929212574112376~8719443360",
         "iosAppId": "ca-app-pub-3929212574112376~4205483282"
-      },
-      "googleMapsApiKey": "AIzaSyBDawhwhEmdCe6nqAhdmwSjdu6GQnsIJrs"
+      }
     }
   }
 }
