@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import { Redirect, router } from "expo-router";
+import { router } from "expo-router";
 import { doc, onSnapshot } from "firebase/firestore";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+
 import { MenuCard } from "../components/MenuCard";
 import { OfflineBanner } from "../components/OfflineBanner";
 import { ScreenContainer } from "../components/ScreenContainer";
@@ -17,15 +18,6 @@ import { useAuth } from "../contexts/AuthContext";
 import { useAppTheme } from "../contexts/ThemeContext";
 import { handleError } from "../lib/errorHandler";
 import { db } from "../lib/firebase";
-
-type Destino =
-  | "loading"
-  | "publico"
-  | "cliente"
-  | "profissional"
-  | "admin"
-  | "manutencao"
-  | "erro";
 
 type ConfigApp = {
   appEmManutencao?: boolean;
@@ -35,6 +27,7 @@ type ConfigApp = {
 export default function Entrada() {
   const { theme } = useAppTheme();
   const styles = createStyles(theme);
+
   const { user, userData, loading, authReady } = useAuth();
 
   const [configCarregada, setConfigCarregada] = useState(false);
@@ -42,20 +35,24 @@ export default function Entrada() {
   const [avisoGlobal, setAvisoGlobal] = useState("");
   const [erro, setErro] = useState("");
 
+  const navegadoRef = useRef(false);
+
+  // 🔥 CONFIG FIREBASE
   useEffect(() => {
-    const unsubscribeConfig = onSnapshot(
+    const unsubscribe = onSnapshot(
       doc(db, "configuracoes", "app"),
-      (snapConfig) => {
-        if (!snapConfig.exists()) {
+      (snap) => {
+        if (!snap.exists()) {
           setAppEmManutencao(false);
           setAvisoGlobal("");
           setConfigCarregada(true);
           return;
         }
 
-        const dadosConfig = snapConfig.data() as ConfigApp;
-        setAppEmManutencao(dadosConfig.appEmManutencao === true);
-        setAvisoGlobal(dadosConfig.avisoGlobal || "");
+        const data = snap.data() as ConfigApp;
+
+        setAppEmManutencao(data.appEmManutencao === true);
+        setAvisoGlobal(data.avisoGlobal || "");
         setConfigCarregada(true);
       },
       (error) => {
@@ -65,53 +62,53 @@ export default function Entrada() {
       }
     );
 
-    return () => {
-      unsubscribeConfig();
-    };
+    return () => unsubscribe();
   }, []);
 
-  const destino = useMemo<Destino>(() => {
-    if (!authReady || loading || !configCarregada) {
-      return "loading";
-    }
+  // 🔥 NAVEGAÇÃO CONTROLADA (SEM REDIRECT)
+  useEffect(() => {
+    if (!authReady || loading || !configCarregada) return;
+    if (navegadoRef.current) return;
 
-    if (erro.trim()) {
-      return "erro";
-    }
+    let rota: string | null = null;
 
+    if (erro) return;
+
+    // manutenção global
     if (appEmManutencao) {
-      if (userData?.tipo === "admin") {
-        return "admin";
-      }
-      return "manutencao";
+      rota =
+        userData?.tipo === "admin"
+          ? "/admin/dashboard"
+          : "/manutencao";
+    }
+    // usuário logado
+    else if (user) {
+      const tipo = String(userData?.tipo || "").toLowerCase();
+
+      if (tipo === "admin") rota = "/admin/dashboard";
+      else if (tipo === "cliente") rota = "/cliente-home";
+      else if (tipo === "profissional") rota = "/painel-profissional";
     }
 
-    if (!user) {
-      return "publico";
-    }
+    if (!rota) return;
 
-    const tipo = String(userData?.tipo || "").toLowerCase();
+    navegadoRef.current = true;
 
-    if (tipo === "admin") return "admin";
-    if (tipo === "cliente") return "cliente";
-    if (tipo === "profissional") return "profissional";
+    requestAnimationFrame(() => {
+      router.replace(rota);
+    });
+  }, [
+    authReady,
+    loading,
+    configCarregada,
+    user,
+    userData?.tipo,
+    appEmManutencao,
+    erro,
+  ]);
 
-    return "publico";
-  }, [authReady, loading, configCarregada, erro, appEmManutencao, user, userData?.tipo]);
-
-  function abrirCliente() {
-    router.push(appEmManutencao ? "/manutencao" : "/login-cliente");
-  }
-
-  function abrirProfissional() {
-    router.push(appEmManutencao ? "/manutencao" : "/login-profissional");
-  }
-
-  function abrirAdminOculto() {
-    router.push("/login-admin");
-  }
-
-  if (destino === "loading") {
+  // 🔥 LOADING STATE
+  if (!authReady || loading || !configCarregada) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -120,18 +117,14 @@ export default function Entrada() {
     );
   }
 
-  if (destino === "erro") {
+  // 🔥 ERRO STATE
+  if (erro) {
     return (
       <View style={styles.center}>
         <Text style={styles.loadingText}>{erro}</Text>
       </View>
     );
   }
-
-  if (destino === "admin") return <Redirect href="/admin/dashboard" />;
-  if (destino === "cliente") return <Redirect href="/cliente-home" />;
-  if (destino === "profissional") return <Redirect href="/painel-profissional" />;
-  if (destino === "manutencao") return <Redirect href="/manutencao" />;
 
   return (
     <ScreenContainer scroll={false}>
@@ -140,7 +133,7 @@ export default function Entrada() {
       <View style={styles.hero}>
         <Pressable
           accessibilityRole="button"
-          onLongPress={abrirAdminOculto}
+          onLongPress={() => router.push("/login-admin")}
           delayLongPress={10000}
           style={styles.logoWrap}
         >
@@ -160,7 +153,7 @@ export default function Entrada() {
       {!!avisoGlobal.trim() && (
         <View style={styles.noticeCard}>
           <Text style={styles.noticeTitle}>Aviso</Text>
-          <Text style={styles.noticeText}>{avisoGlobal.trim()}</Text>
+          <Text style={styles.noticeText}>{avisoGlobal}</Text>
         </View>
       )}
 
@@ -168,17 +161,39 @@ export default function Entrada() {
         <MenuCard
           title="PRECISO DE SERVIÇO"
           subtitle="Entrar como cliente"
-          icon={<Feather name="search" size={20} color={theme.colors.primary} />}
+          icon={
+            <Feather
+              name="search"
+              size={20}
+              color={theme.colors.primary}
+            />
+          }
           borderVariant="primary"
-          onPress={abrirCliente}
+          onPress={() =>
+            router.push(
+              appEmManutencao ? "/manutencao" : "/login-cliente"
+            )
+          }
         />
 
         <MenuCard
           title="SOU PROFISSIONAL"
           subtitle="Entrar como profissional"
-          icon={<Feather name="briefcase" size={20} color={theme.colors.success} />}
+          icon={
+            <Feather
+              name="briefcase"
+              size={20}
+              color={theme.colors.success}
+            />
+          }
           borderVariant="success"
-          onPress={abrirProfissional}
+          onPress={() =>
+            router.push(
+              appEmManutencao
+                ? "/manutencao"
+                : "/login-profissional"
+            )
+          }
         />
       </View>
     </ScreenContainer>

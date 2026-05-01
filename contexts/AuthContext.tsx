@@ -8,9 +8,11 @@ import {
   useRef,
   useState,
 } from "react";
+
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+
 import { auth, db } from "../lib/firebase";
 import { handleError } from "../lib/errorHandler";
 import { safeRequest } from "../lib/firebaseService";
@@ -50,6 +52,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
 
@@ -58,12 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastUserIdRef = useRef<string | null>(null);
   const lastPushTokenRef = useRef<string | null>(null);
 
+  // 🔥 LIMPAR STATE
   const limparAuthState = useCallback(() => {
     if (!mountedRef.current) return;
+
     setUser(null);
     setUserData(null);
   }, []);
 
+  // 🔥 CARREGAR USER DATA
   const carregarUserData = useCallback(async (userId: string) => {
     try {
       if (!auth.currentUser || auth.currentUser.uid !== userId) {
@@ -85,7 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mountedRef.current) return;
 
       if (!snap.exists()) {
-        setUserData(null);
+        setUserData({
+          id: userId,
+          tipo: "cliente", // fallback seguro
+        });
         return;
       }
 
@@ -95,12 +104,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } as UserData);
     } catch (error) {
       if (!mountedRef.current) return;
+
       logError(error, "AuthContext.carregarUserData");
       handleError(error, "AuthContext.carregarUserData");
-      setUserData(null);
+
+      // 🔥 fallback seguro
+      setUserData({
+        id: userId,
+        tipo: "cliente",
+      });
     }
   }, []);
 
+  // 🔥 RECARREGAR USER DATA
   const recarregarUserData = useCallback(async () => {
     const currentUser = auth.currentUser;
 
@@ -113,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await carregarUserData(currentUser.uid);
   }, [carregarUserData]);
 
+  // 🔥 AUTH LISTENER PRINCIPAL
   useEffect(() => {
     mountedRef.current = true;
 
@@ -121,14 +138,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!mountedRef.current) return;
 
-      setLoading(true);
       setUser(usuario);
 
+      // 🔥 NÃO resetar loading toda hora
+      if (!authReady) {
+        setLoading(true);
+      }
+
+      // 🔴 LOGOUT
       if (!usuario) {
         lastUserIdRef.current = null;
+
         setUserData(null);
         setLoading(false);
         setAuthReady(true);
+
         logEvent("auth_signed_out", undefined, "AuthContext");
         return;
       }
@@ -140,20 +164,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!mountedRef.current) return;
         if (authChangeSeqRef.current !== seq) return;
-        if (lastUserIdRef.current !== usuario.uid) return;
 
-        /**
-         * 🔥 PUSH NOTIFICATION GLOBAL (AQUI ESTÁ O CORAÇÃO)
-         */
-        try {
-          const token = await registrarPushNotificationsAsync();
-
-          if (token && token !== lastPushTokenRef.current) {
-            lastPushTokenRef.current = token;
-          }
-        } catch (pushError) {
-          logError(pushError, "AuthContext.pushToken");
-        }
+        // 🔥 PUSH FORA DO FLUXO CRÍTICO
+        void registrarPushNotificationsAsync()
+          .then((token) => {
+            if (token && token !== lastPushTokenRef.current) {
+              lastPushTokenRef.current = token;
+            }
+          })
+          .catch((err) => {
+            logError(err, "AuthContext.pushToken");
+          });
 
         logEvent(
           "auth_signed_in",
@@ -161,7 +182,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "AuthContext"
         );
       } catch (error) {
-        if (!mountedRef.current) return;
         logError(error, "AuthContext.onAuthStateChanged");
       } finally {
         if (!mountedRef.current) return;
@@ -176,8 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mountedRef.current = false;
       unsubscribe();
     };
-  }, [carregarUserData]);
+  }, [carregarUserData, authReady]);
 
+  // 🔥 MEMO FINAL
   const value = useMemo<AuthContextType>(
     () => ({
       user,
@@ -187,12 +208,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       recarregarUserData,
       limparAuthState,
     }),
-    [user, userData, loading, authReady, recarregarUserData, limparAuthState]
+    [
+      user,
+      userData,
+      loading,
+      authReady,
+      recarregarUserData,
+      limparAuthState,
+    ]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
+// 🔥 HOOK
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
 
