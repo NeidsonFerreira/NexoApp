@@ -20,11 +20,17 @@ Notifications.setNotificationHandler({
 
 export async function registrarPushNotificationsAsync(): Promise<string | null> {
   try {
-    // ❌ não funciona no Expo Go Android
-    if (isExpoGoAndroid()) return null;
+    // ❌ Não funciona no Expo Go Android
+    if (isExpoGoAndroid()) {
+      console.log("⚠️ Execução abortada: Expo Go no Android não suporta notificações nativas.");
+      return null;
+    }
 
-    // ❌ precisa ser device físico
-    if (!Device.isDevice) return null;
+    // ❌ Precisa ser device físico para notificações push reais
+    if (!Device.isDevice) {
+      console.log("⚠️ Execução abortada: Notificações exigem um dispositivo físico.");
+      return null;
+    }
 
     // Android channel obrigatório
     if (Platform.OS === "android") {
@@ -34,7 +40,7 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
       });
     }
 
-    // permissões
+    // Permissões
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== "granted") {
       console.log("❌ Permissão não concedida");
@@ -48,7 +54,7 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
     }
     console.log("✅ Firebase inicializado com App ID:", app.options.appId);
 
-    // projectId do projeto Firebase usado no push
+    // ProjectId do projeto Firebase usado no push
     const projectId =
       Constants.expoConfig?.extra?.firebaseProjectId ??
       process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
@@ -58,7 +64,7 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
       return null;
     }
 
-    // gera token Expo com retry
+    // Gera token Expo com retry
     const expoToken = await retry(async () => {
       const res = await Notifications.getExpoPushTokenAsync({ projectId });
       return res.data;
@@ -66,9 +72,9 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
 
     console.log("📲 Expo Push Token:", expoToken);
 
-    // 🔥 só tenta pegar FCM puro em build nativo (não Expo Go, não dev)
-    let deviceToken: string | null = null;
-    if (!__DEV__ && !isExpoGoAndroid()) {
+    // 🔥 Proteção: Só tenta pegar FCM puro em ambiente de produção para evitar FIS_AUTH_ERROR
+    if (!__DEV__) {
+      let deviceToken: string | null = null;
       try {
         const res = await Notifications.getDevicePushTokenAsync();
         deviceToken = res?.data ?? null;
@@ -78,7 +84,7 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
       }
     }
 
-    // 🔥 valida auth antes de salvar
+    // 🔥 Valida auth antes de salvar
     if (!auth.currentUser) {
       console.log("⚠️ Usuário não logado, token NÃO salvo no Firestore");
       return expoToken;
@@ -86,7 +92,7 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
 
     console.log("👤 Salvando token para UID:", auth.currentUser.uid);
 
-    // salva direto no Firestore
+    // Salva direto no Firestore
     await setDoc(
       doc(db, "users", auth.currentUser.uid),
       {
@@ -98,7 +104,7 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
 
     console.log("✅ Token salvo no Firestore");
 
-    // também envia para Cloud Function
+    // Também envia para Cloud Function
     try {
       const functions = getFunctions(app);
       const registrarPushToken = httpsCallable(functions, "registrarPushToken");
