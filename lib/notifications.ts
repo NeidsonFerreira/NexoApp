@@ -3,7 +3,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { doc, setDoc } from "firebase/firestore";
-import { app, auth, db } from "../firebaseConfig"; // importa do firebaseConfig.js
+import { app, auth, db } from "../firebaseConfig";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { isExpoGoAndroid } from "./isExpoGoAndroid";
 import { retry } from "./retry";
@@ -49,8 +49,9 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
     console.log("✅ Firebase inicializado com App ID:", app.options.appId);
 
     // projectId do projeto Firebase usado no push
-    const projectId = Constants.expoConfig?.extra?.firebaseProjectId
-      ?? process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+    const projectId =
+      Constants.expoConfig?.extra?.firebaseProjectId ??
+      process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
 
     if (!projectId) {
       console.log("❌ ProjectId não encontrado");
@@ -65,9 +66,17 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
 
     console.log("📲 Expo Push Token:", expoToken);
 
-    // também logar token FCM puro
-    const deviceToken = await Notifications.getDevicePushTokenAsync();
-    console.log("🔥 FCM Token:", deviceToken);
+    // 🔥 só tenta pegar FCM puro em build nativo (não Expo Go, não dev)
+    let deviceToken: string | null = null;
+    if (!__DEV__ && !isExpoGoAndroid()) {
+      try {
+        const res = await Notifications.getDevicePushTokenAsync();
+        deviceToken = res?.data ?? null;
+        console.log("🔥 FCM Token:", deviceToken);
+      } catch (err) {
+        console.log("⚠️ Falha ao obter FCM Token:", err);
+      }
+    }
 
     // 🔥 valida auth antes de salvar
     if (!auth.currentUser) {

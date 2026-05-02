@@ -27,6 +27,7 @@
         "backgroundColor": "#000000"
       },
       "predictiveBackGestureEnabled": false,
+      "googleServicesFile": "./google-services.json",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBDawhwhEmdCe6nqAhdmwSjdu6GQnsIJrs"
@@ -42,6 +43,14 @@
 
     "plugins": [
       "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "googleServicesFile": "./google-services.json"
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -67,9 +76,8 @@
       "eas": {
         "projectId": "c9b1e493-aacf-48fb-949e-79b89b660718"
       },
-
-      "firebaseProjectId":"nexo-8cc2c",
-      "firebaseAppId": "1:730887766171:web:45a363822f1e324abd463e",
+      "firebaseProjectId": "nexo-8cc2c",
+      "firebaseAppId": "1:730887766171:android:a0fae30af44bf3f4bd463e",
       "firebaseApiKey": "AIzaSyCRv6eN_Pycp_i5wkTMsk4Qgk9RXyHDgcw",
       "firebaseMessagingSenderId": "730887766171"
     }
