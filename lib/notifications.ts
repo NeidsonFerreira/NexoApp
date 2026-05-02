@@ -1,10 +1,9 @@
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import { getApps } from "firebase/app";
 import { Platform } from "react-native";
 import { doc, setDoc } from "firebase/firestore";
-import { app, auth, db } from "./firebase";
+import { app, auth, db } from "../firebaseConfig"; // importa do firebaseConfig.js
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { isExpoGoAndroid } from "./isExpoGoAndroid";
 import { retry } from "./retry";
@@ -42,20 +41,19 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
       return null;
     }
 
-    // Garante Firebase inicializado antes de pedir token
-    if (!getApps().length) {
+    // Garante Firebase inicializado com config Android
+    if (!app) {
       console.log("❌ Firebase não inicializado; abortando geração de token");
       return null;
     }
+    console.log("✅ Firebase inicializado com App ID:", app.options.appId);
 
     // projectId do projeto Firebase usado no push
-    const projectId = "nexo-8cc2c";
-    const firebaseProjectId = Constants.expoConfig?.extra?.firebaseProjectId
+    const projectId = Constants.expoConfig?.extra?.firebaseProjectId
       ?? process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
-    if (firebaseProjectId && firebaseProjectId !== projectId) {
-      console.log(
-        `❌ ProjectId divergente (firebase: ${firebaseProjectId}, notifications: ${projectId})`
-      );
+
+    if (!projectId) {
+      console.log("❌ ProjectId não encontrado");
       return null;
     }
 
@@ -93,7 +91,7 @@ export async function registrarPushNotificationsAsync(): Promise<string | null> 
 
     // também envia para Cloud Function
     try {
-      const functions = getFunctions();
+      const functions = getFunctions(app);
       const registrarPushToken = httpsCallable(functions, "registrarPushToken");
       await registrarPushToken({ pushToken: expoToken });
       console.log("✅ Token enviado para Cloud Function");

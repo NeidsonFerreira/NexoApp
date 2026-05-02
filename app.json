@@ -41,6 +41,7 @@
     },
 
     "plugins": [
+      "expo-barcode-scanner",
       "expo-router",
       [
         "expo-splash-screen",
@@ -66,7 +67,12 @@
       "router": {},
       "eas": {
         "projectId": "c9b1e493-aacf-48fb-949e-79b89b660718"
-      }
+      },
+
+      "firebaseProjectId":"nexo-8cc2c",
+      "firebaseAppId": "1:730887766171:web:45a363822f1e324abd463e",
+      "firebaseApiKey": "AIzaSyCRv6eN_Pycp_i5wkTMsk4Qgk9RXyHDgcw",
+      "firebaseMessagingSenderId": "730887766171"
     }
   }
 }
