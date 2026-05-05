@@ -1,4 +1,4 @@
-package com.nexo.app
+package br.com.nexo.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

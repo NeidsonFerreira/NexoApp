@@ -7,34 +7,34 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:730887766171:android:a087587dc23fa88bbd463e",
+        "mobilesdk_app_id": "1:730887766171:android:faae6e0b6c4270a6bd463e",
         "android_client_info": {
-          "package_name": "com.nexo.app"
+          "package_name": "br.com.nexo.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "730887766171-1u3u2tq89mou75udu9idsjpfrrp76a0c.apps.googleusercontent.com",
+          "client_id": "730887766171-g74ce4n9kuvgkfc3ov4ipsjjp79lsmuq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.nexo.app",
+            "package_name": "br.com.nexo.app",
+            "certificate_hash": "d57531db5e992057721814039ee439546af13cf7"
+          }
+        },
+        {
+          "client_id": "730887766171-o0gansem1hv37mtemufmrar5qc5u137j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "br.com.nexo.app",
             "certificate_hash": "195eeb3bff6016ae9059b516e12b1f1a515fc7e3"
           }
         },
         {
-          "client_id": "730887766171-bir21a6ibgv20836j2ld1v986jsgasu9.apps.googleusercontent.com",
+          "client_id": "730887766171-rh8qdfc87ka2kau31rvcsaacrpugocnb.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.nexo.app",
+            "package_name": "br.com.nexo.app",
             "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
-          }
-        },
-        {
-          "client_id": "730887766171-p0b4djc55006snr70bd4suvlppn0epgk.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.nexo.app",
-            "certificate_hash": "d57531db5e992057721814039ee439546af13cf7"
           }
         },
         {
@@ -44,7 +44,7 @@
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCH16ByKtvYZCf1e14nNKCkUmvS5N8Uoe8"
+          "current_key": "AIzaSyBPH09C8wQo_ltD0FFumsc6nnFOWyuFReU"
         }
       ],
       "services": {
@@ -58,7 +58,7 @@
               "client_id": "730887766171-ou70l9r0gn3qrjsbj8o5bpebr4a2k447.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.nexo.app"
+                "bundle_id": "br.com.nexo.app"
               }
             }
           ]

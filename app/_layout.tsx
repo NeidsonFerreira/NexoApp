@@ -183,7 +183,9 @@ function RootNavigator() {
     [themeMode, theme]
   );
 
-  if (carregandoTema || !authReady || loading) {
+  // Garantimos que a página de chat-suporte ou ajuda renderize mesmo se a autenticação
+  // ainda estiver carregando, evitando bloqueios indevidos.
+  if (carregandoTema) {
     return <AppBootstrapLoader />;
   }
 

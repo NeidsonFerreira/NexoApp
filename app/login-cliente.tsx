@@ -353,8 +353,12 @@ export default function LoginCliente() {
     }
   }
 
+  function ReadyValid(ready: boolean, loadingState: boolean) {
+    return ready && !loadingState;
+  }
+
   useEffect(() => {
-    if (!isFocused || !authReady || loading) return;
+    if (!isFocused || !ReadyValid(authReady, loading)) return;
 
     if (!user) {
       setStatusTela("livre");
@@ -367,7 +371,6 @@ export default function LoginCliente() {
 
     if (tipo === "cliente") {
       setStatusTela("cliente");
-      
       return;
     }
 
@@ -690,7 +693,16 @@ export default function LoginCliente() {
         { text: "Cancelar", style: "cancel" },
         {
           text: "Ir para ajuda",
-          onPress: () => router.push("/chat-suporte?origem=recuperacao"),
+          onPress: () => {
+            router.push({
+              pathname: "/chat-suporte",
+              params: {
+                origem: "recuperacao",
+                categoria: "Recuperação de Conta",
+                topico: "Problema de Acesso",
+              }
+            });
+          },
         },
       ]
     );

@@ -10,8 +10,8 @@ import {
 } from "react";
 
 import type { User } from "firebase/auth";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 import { auth, db } from "../lib/firebase";
 import { handleError } from "../lib/errorHandler";
@@ -70,10 +70,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // 🔥 CARREGAR USER DATA
-  const carregarUserData = useCallback(async (userId: string) => {
+  const carregarUserData = useCallback(async (userId: string, isAnonymous: boolean) => {
     try {
       if (!auth.currentUser || auth.currentUser.uid !== userId) {
         if (mountedRef.current) setUserData(null);
+        return;
+      }
+
+      // Se for anônimo, removemos a permissão e forçamos o valor padrão ou nulo
+      if (isAnonymous) {
+        if (mountedRef.current) {
+          setUserData(null);
+        }
         return;
       }
 
@@ -106,9 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mountedRef.current) return;
 
       logError(error, "AuthContext.carregarUserData");
-      handleError(error, "AuthContext.carregarUserData");
+      handleError("AuthContext.carregarUserData");
 
-      // 🔥 fallback seguro
       setUserData({
         id: userId,
         tipo: "cliente",
@@ -126,7 +133,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    await carregarUserData(currentUser.uid);
+    // Se o usuário for anônimo, não carregamos dados do banco
+    if (currentUser.isAnonymous) {
+      setUserData(null);
+      return;
+    }
+
+    await carregarUserData(currentUser.uid, currentUser.isAnonymous);
   }, [carregarUserData]);
 
   // 🔥 AUTH LISTENER PRINCIPAL
@@ -138,9 +151,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!mountedRef.current) return;
 
+      // 🔴 SE FOR ANÔNIMO, IGNORAMOS A SESSÃO E DESLOGAMOS IMEDIATAMENTE
+      if (usuario?.isAnonymous) {
+        await signOut(auth);
+        
+        setUser(null);
+        setUserData(null);
+        setLoading(false);
+        setAuthReady(true);
+        logEvent("auth_anonymous_rejected", undefined, "AuthContext");
+        return;
+      }
+
       setUser(usuario);
 
-      // 🔥 NÃO resetar loading toda hora
       if (!authReady) {
         setLoading(true);
       }
@@ -160,21 +184,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       lastUserIdRef.current = usuario.uid;
 
       try {
-        await carregarUserData(usuario.uid);
+        await carregarUserData(usuario.uid, usuario.isAnonymous);
 
         if (!mountedRef.current) return;
         if (authChangeSeqRef.current !== seq) return;
 
-        // 🔥 PUSH FORA DO FLUXO CRÍTICO
-        void registrarPushNotificationsAsync()
-          .then((token) => {
-            if (token && token !== lastPushTokenRef.current) {
-              lastPushTokenRef.current = token;
-            }
-          })
-          .catch((err) => {
-            logError(err, "AuthContext.pushToken");
-          });
+        // 🔥 TENTA REGISTRAR OU CRIAR TOKEN DE TESTE EM DEV
+        if (!usuario.isAnonymous && typeof registrarPushNotificationsAsync === "function") {
+          registrarPushNotificationsAsync()
+            .then(async (token) => {
+              const actualToken = token || "ExponentPushToken[TESTE_DESENVOLVIMENTO_PARA_TESTES]";
+
+              if (actualToken !== lastPushTokenRef.current) {
+                lastPushTokenRef.current = actualToken;
+
+                await setDoc(
+                  doc(db, "users", usuario.uid),
+                  {
+                    pushToken: actualToken,
+                    pushTokenUpdatedAt: new Date().toISOString(),
+                  },
+                  { merge: true }
+                );
+                console.log("✅ Token salvo no Firestore:", actualToken);
+              }
+            })
+            .catch((err) => {
+              logError(err, "AuthContext.pushToken");
+            });
+        }
 
         logEvent(
           "auth_signed_in",

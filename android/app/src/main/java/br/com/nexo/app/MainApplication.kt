@@ -1,4 +1,4 @@
-package com.nexo.app
+package br.com.nexo.app
 
 import android.app.Application
 import android.content.res.Configuration
